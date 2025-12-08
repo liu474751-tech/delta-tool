@@ -42,7 +42,7 @@ with col2:
     total_cost = armor_cost[armor_level] + (ammo_price * 180) # 假设带180发子弹
     expected_profit = avg_revenue[difficulty] - total_cost
 
-    # 结果显示 (之前报错就是这里没复制全，现在修复了)
+    # 结果显示 (之前报错就是这里断了，现在是完整的)
     st.metric(label="预计出金率", value=loot_prob[difficulty])
     st.metric(label="预估净利润", value=f"{expected_profit:,} 哈夫币", delta="盈利" if expected_profit > 0 else "亏损")
 
