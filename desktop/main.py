@@ -9,23 +9,53 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit, QTabWidget, QGroupBox,
     QComboBox, QSpinBox, QCheckBox, QTableWidget, QTableWidgetItem,
-    QSystemTrayIcon, QMenu, QMessageBox, QFileDialog, QFrame
+    QSystemTrayIcon, QMenu, QMessageBox, QFileDialog, QFrame,
+    QLineEdit, QSlider, QDoubleSpinBox
 )
-from PyQt6.QtCore import Qt, QTimer, QSettings
-from PyQt6.QtGui import QPixmap, QAction, QPalette, QColor
+from PyQt6.QtCore import Qt, QTimer, QSettings, QThread, pyqtSignal
+from PyQt6.QtGui import QPixmap, QAction, QPalette, QColor, QKeySequence, QShortcut
 from datetime import datetime
+import json
 
 from screen_capture import ScreenCapture
 from ocr_engine import OCREngine
 from data_manager import DataManager
 from game_detector import GameDetector
 
+# Try to import keyboard for global hotkeys
+try:
+    import keyboard
+    KEYBOARD_AVAILABLE = True
+except ImportError:
+    KEYBOARD_AVAILABLE = False
+
+
+class OCRWorker(QThread):
+    """OCR worker thread"""
+    result_ready = pyqtSignal(dict)
+    error_occurred = pyqtSignal(str)
+    
+    def __init__(self, ocr_engine, image):
+        super().__init__()
+        self.ocr_engine = ocr_engine
+        self.image = image
+    
+    def run(self):
+        try:
+            result = self.ocr_engine.recognize(self.image)
+            if result:
+                self.result_ready.emit(result)
+            else:
+                self.result_ready.emit({})
+        except Exception as e:
+            self.error_occurred.emit(str(e))
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Delta Tool - Screen Capture v1.0")
-        self.setMinimumSize(1000, 700)
+        self.setWindowTitle("Delta Tool - Screen Capture v1.1")
+        self.setMinimumSize(1100, 750)
         self.apply_dark_theme()
         
         self.screen_capture = ScreenCapture()
@@ -37,12 +67,18 @@ class MainWindow(QMainWindow):
         self.game_detected = False
         self.current_map = None
         self.current_mode = None
+        self.current_session_profit = 0
+        self.current_session_games = 0
+        self.last_status = None
+        self.ocr_worker = None
         
         self.setup_ui()
+        self.setup_tray_icon()
         self.setup_timers()
+        self.setup_hotkeys()
         self.load_settings()
         
-        self.statusBar().showMessage("Ready")
+        self.statusBar().showMessage("Ready - Press F9 to capture, F10 to toggle monitor")
     
     def apply_dark_theme(self):
         self.setStyleSheet('''
@@ -222,6 +258,41 @@ class MainWindow(QMainWindow):
         self.game_detect_timer = QTimer()
         self.game_detect_timer.timeout.connect(self.check_game_status)
         self.game_detect_timer.start(5000)
+        
+        # Auto-save timer
+        self.autosave_timer = QTimer()
+        self.autosave_timer.timeout.connect(self.auto_save_session)
+        self.autosave_timer.start(60000)  # Save every minute
+    
+    def setup_hotkeys(self):
+        """Setup global hotkeys"""
+        # Local shortcuts (work when window focused)
+        QShortcut(QKeySequence("F9"), self, self.manual_capture)
+        QShortcut(QKeySequence("F10"), self, self.toggle_monitoring_hotkey)
+        QShortcut(QKeySequence("F11"), self, self.recognize_screen)
+        QShortcut(QKeySequence("Ctrl+S"), self, self.quick_save_record)
+        
+        # Global hotkeys (work even when window not focused)
+        if KEYBOARD_AVAILABLE:
+            try:
+                keyboard.add_hotkey('f9', self.manual_capture_safe)
+                keyboard.add_hotkey('f10', self.toggle_monitoring_safe)
+                self.log("Global hotkeys registered: F9=Capture, F10=Toggle")
+            except Exception as e:
+                self.log(f"Global hotkeys failed: {e}")
+    
+    def manual_capture_safe(self):
+        """Thread-safe manual capture"""
+        QTimer.singleShot(0, self.manual_capture)
+    
+    def toggle_monitoring_safe(self):
+        """Thread-safe toggle"""
+        QTimer.singleShot(0, self.toggle_monitoring_hotkey)
+    
+    def toggle_monitoring_hotkey(self):
+        """Toggle via hotkey"""
+        self.start_btn.setChecked(not self.start_btn.isChecked())
+        self.toggle_monitoring()
     
     def toggle_monitoring(self):
         if self.start_btn.isChecked():
@@ -293,9 +364,74 @@ class MainWindow(QMainWindow):
                     self.add_item_to_table(item)
             
             if result.get("profit"):
-                self.loot_label.setText(f"Profit: {result['profit']:,}")
+                profit = result["profit"]
+                self.loot_label.setText(f"Profit: {profit:,}")
+                self.current_session_profit += profit
+            
+            # Auto-detect game end status
+            if result.get("status"):
+                status = result["status"]
+                if status != self.last_status and status in ["撤离成功", "阵亡"]:
+                    self.last_status = status
+                    self.current_session_games += 1
+                    survived = status == "撤离成功"
+                    self.auto_record_game(result, survived)
+                    self.log(f"Game ended: {status}")
         else:
             self.log("No game screen detected")
+    
+    def auto_record_game(self, ocr_result, survived):
+        """Automatically record game result"""
+        record = {
+            "map": self.current_map or "Unknown",
+            "mode": self.current_mode or "Unknown",
+            "zone": "",
+            "items": ocr_result.get("items", []),
+            "profit": ocr_result.get("profit", 0) if survived else 0,
+            "survived": survived
+        }
+        self.data_manager.add_record(record)
+        self.refresh_records_table()
+        self.log(f"Auto-saved: {record['map']} - {'Extracted' if survived else 'KIA'}")
+    
+    def quick_save_record(self):
+        """Quick save current game via Ctrl+S"""
+        if self.current_map:
+            record = {
+                "map": self.current_map,
+                "mode": self.current_mode or "Unknown",
+                "zone": "",
+                "items": [],
+                "profit": 0,
+                "survived": True
+            }
+            self.data_manager.add_record(record)
+            self.refresh_records_table()
+            self.log("Quick saved current game")
+            QMessageBox.information(self, "Saved", "Game record saved!")
+    
+    def auto_save_session(self):
+        """Auto-save session data"""
+        self.data_manager.save_data()
+    
+    def refresh_records_table(self):
+        """Refresh records table"""
+        records = self.data_manager.get_records()
+        self.records_table.setRowCount(0)
+        
+        for record in records[-50:]:  # Show last 50
+            row = self.records_table.rowCount()
+            self.records_table.insertRow(row)
+            
+            items_str = ", ".join([i.get("name", "") for i in record.get("items", [])])
+            
+            self.records_table.setItem(row, 0, QTableWidgetItem(record.get("datetime", "")[:16]))
+            self.records_table.setItem(row, 1, QTableWidgetItem(record.get("map", "")))
+            self.records_table.setItem(row, 2, QTableWidgetItem(record.get("mode", "")))
+            self.records_table.setItem(row, 3, QTableWidgetItem(record.get("zone", "")))
+            self.records_table.setItem(row, 4, QTableWidgetItem(items_str))
+            self.records_table.setItem(row, 5, QTableWidgetItem(str(record.get("profit", 0))))
+            self.records_table.setItem(row, 6, QTableWidgetItem("OK" if record.get("survived") else "KIA"))
     
     def add_item_to_table(self, item):
         row = self.items_table.rowCount()
@@ -343,6 +479,78 @@ class MainWindow(QMainWindow):
         settings.setValue("auto_recognize", self.auto_recognize_check.isChecked())
         settings.setValue("auto_detect", self.auto_detect_check.isChecked())
         QMessageBox.information(self, "Settings", "Settings saved!")
+    
+    def setup_tray_icon(self):
+        """Setup system tray icon"""
+        self.tray_icon = QSystemTrayIcon(self)
+        
+        # Create tray menu
+        tray_menu = QMenu()
+        
+        show_action = QAction("Show Window", self)
+        show_action.triggered.connect(self.show)
+        tray_menu.addAction(show_action)
+        
+        capture_action = QAction("Capture (F9)", self)
+        capture_action.triggered.connect(self.manual_capture)
+        tray_menu.addAction(capture_action)
+        
+        monitor_action = QAction("Toggle Monitor (F10)", self)
+        monitor_action.triggered.connect(self.toggle_monitoring)
+        tray_menu.addAction(monitor_action)
+        
+        tray_menu.addSeparator()
+        
+        quit_action = QAction("Quit", self)
+        quit_action.triggered.connect(self.force_quit)
+        tray_menu.addAction(quit_action)
+        
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.setToolTip("Delta Tool - Screen Capture")
+        self.tray_icon.activated.connect(self.tray_icon_activated)
+        self.tray_icon.show()
+    
+    def tray_icon_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self.show()
+            self.activateWindow()
+    
+    def closeEvent(self, event):
+        """Minimize to tray instead of closing"""
+        if self.tray_icon.isVisible():
+            self.hide()
+            self.tray_icon.showMessage(
+                "Delta Tool",
+                "Application minimized to tray. Double-click to restore.",
+                QSystemTrayIcon.MessageIcon.Information,
+                2000
+            )
+            event.ignore()
+        else:
+            event.accept()
+    
+    def force_quit(self):
+        """Actually quit the application"""
+        # Cleanup hotkeys
+        if KEYBOARD_AVAILABLE:
+            try:
+                keyboard.unhook_all()
+            except:
+                pass
+        
+        self.data_manager.save_data()
+        self.tray_icon.hide()
+        QApplication.quit()
+    
+    def show_notification(self, title, message):
+        """Show tray notification"""
+        if hasattr(self, 'tray_icon') and self.tray_icon.isVisible():
+            self.tray_icon.showMessage(
+                title,
+                message,
+                QSystemTrayIcon.MessageIcon.Information,
+                3000
+            )
 
 
 def main():
