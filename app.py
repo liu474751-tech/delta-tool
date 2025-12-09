@@ -374,7 +374,7 @@ with st.sidebar:
         "功能菜单",
         ["🏠 战备配置", "💰 战备计算器", "🎖️ 干员指南", "📊 地图出货统计", 
          "🎰 爆率模拟器", "🎒 装备推荐", "📈 数据管理", "📋 游戏记录",
-         "📉 深度分析", "🤖 智能推荐"],
+         "📉 深度分析", "🤖 智能推荐", "💻 桌面客户端"],
         index=0
     )
     
@@ -1795,6 +1795,181 @@ elif menu == "🤖 智能推荐":
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+
+# ==================== 桌面客户端下载 ====================
+elif menu == "💻 桌面客户端":
+    st.title("💻 桌面客户端下载")
+    st.caption("屏幕捕获 + OCR识别 + 自动记录")
+    
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #1f4068 0%, #16213e 100%); 
+                padding: 2rem; border-radius: 15px; margin: 1rem 0;">
+        <h2 style="color: #FFD700; text-align: center; margin-bottom: 1rem;">
+            🖥️ Delta Tool 桌面版 v1.1
+        </h2>
+        <p style="color: #ccc; text-align: center; font-size: 1.1rem;">
+            实时屏幕捕获 · OCR自动识别 · 游戏数据同步
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### ✨ 功能特性")
+        st.markdown("""
+        - 🖥️ **实时屏幕捕获** - 自动检测游戏窗口
+        - 🔍 **OCR智能识别** - 识别地图、模式、物品
+        - ⌨️ **全局快捷键** - F9截图 / F10监控 / F11识别
+        - 📊 **自动记录** - 撤离/阵亡自动保存
+        - 🔔 **系统托盘** - 最小化后台运行
+        - 💾 **数据导出** - CSV格式导出
+        """)
+        
+        st.markdown("### 📋 系统要求")
+        st.markdown("""
+        - Windows 10/11 64位
+        - Python 3.10+
+        - 4GB+ 内存
+        - 管理员权限（热键功能）
+        """)
+    
+    with col2:
+        st.markdown("### ⌨️ 快捷键")
+        hotkey_data = {
+            "快捷键": ["F9", "F10", "F11", "Ctrl+S"],
+            "功能": ["手动截图", "开始/停止监控", "识别当前画面", "快速保存记录"]
+        }
+        st.table(hotkey_data)
+        
+        st.markdown("### 🔧 OCR引擎选择")
+        st.markdown("""
+        | 引擎 | 优点 | 缺点 |
+        |------|------|------|
+        | **PaddleOCR** | 中文识别最佳 | 安装较大 |
+        | **EasyOCR** | 安装简单 | 速度较慢 |
+        | **Tesseract** | 轻量级 | 需额外安装 |
+        """)
+    
+    st.markdown("---")
+    st.markdown("### 📥 下载安装")
+    
+    # GitHub下载链接
+    github_url = "https://github.com/liu474751-tech/delta-tool"
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown(f"""
+        <a href="{github_url}/archive/refs/heads/main.zip" target="_blank">
+            <div style="background: linear-gradient(135deg, #28a745 0%, #218838 100%); 
+                        padding: 1.5rem; border-radius: 10px; text-align: center; cursor: pointer;">
+                <h3 style="color: white; margin: 0;">📦 下载ZIP包</h3>
+                <p style="color: #ccc; margin: 0.5rem 0 0 0;">一键下载完整代码</p>
+            </div>
+        </a>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <a href="{github_url}" target="_blank">
+            <div style="background: linear-gradient(135deg, #333 0%, #24292e 100%); 
+                        padding: 1.5rem; border-radius: 10px; text-align: center; cursor: pointer;">
+                <h3 style="color: white; margin: 0;">🐙 GitHub仓库</h3>
+                <p style="color: #ccc; margin: 0.5rem 0 0 0;">查看源代码</p>
+            </div>
+        </a>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+        <a href="{github_url}/tree/main/desktop" target="_blank">
+            <div style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); 
+                        padding: 1.5rem; border-radius: 10px; text-align: center; cursor: pointer;">
+                <h3 style="color: white; margin: 0;">📁 桌面端目录</h3>
+                <p style="color: #ccc; margin: 0.5rem 0 0 0;">仅查看桌面客户端</p>
+            </div>
+        </a>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    st.markdown("### 🚀 快速安装步骤")
+    
+    with st.expander("方式一：一键安装（推荐）", expanded=True):
+        st.markdown("""
+        1. 下载并解压ZIP包
+        2. 进入 `desktop` 文件夹
+        3. 双击运行 `install.bat`
+        4. 按提示选择OCR引擎
+        5. 安装完成后双击 `run.bat` 启动
+        """)
+        st.code("""
+# install.bat 会自动执行以下操作：
+# 1. 创建Python虚拟环境
+# 2. 安装所有依赖包
+# 3. 安装选择的OCR引擎
+        """, language="bash")
+    
+    with st.expander("方式二：手动安装"):
+        st.markdown("""
+        1. 确保已安装 Python 3.10+
+        2. 下载代码并进入 desktop 目录
+        3. 执行以下命令：
+        """)
+        st.code("""
+# 创建虚拟环境
+python -m venv venv
+venv\\Scripts\\activate
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 安装OCR引擎（选择其一）
+pip install paddlepaddle paddleocr  # 推荐
+# 或
+pip install easyocr
+
+# 启动程序
+python main.py
+        """, language="bash")
+    
+    with st.expander("方式三：Git克隆"):
+        st.code(f"""
+git clone {github_url}.git
+cd delta-tool/desktop
+pip install -r requirements.txt
+pip install easyocr
+python main.py
+        """, language="bash")
+    
+    st.markdown("---")
+    st.markdown("### ❓ 常见问题")
+    
+    with st.expander("Q: 热键不工作？"):
+        st.markdown("""
+        **A:** 全局热键需要管理员权限。请右键点击 `run.bat`，选择"以管理员身份运行"。
+        """)
+    
+    with st.expander("Q: OCR识别不准确？"):
+        st.markdown("""
+        **A:** 
+        1. 推荐使用 PaddleOCR，中文识别效果最好
+        2. 确保游戏画质设置为高
+        3. 分辨率建议 1920x1080 或更高
+        """)
+    
+    with st.expander("Q: 程序无法启动？"):
+        st.markdown("""
+        **A:** 
+        1. 确认Python版本 >= 3.10
+        2. 尝试重新运行 `install.bat`
+        3. 检查是否有杀毒软件拦截
+        """)
+    
+    with st.expander("Q: 如何更新？"):
+        st.markdown("""
+        **A:** 重新下载ZIP包并解压覆盖，数据文件在用户文档目录不会丢失。
+        """)
 
 # ==================== 页脚 ====================
 st.markdown("---")
