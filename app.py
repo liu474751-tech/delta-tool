@@ -48,287 +48,147 @@ footer {visibility: hidden;}
 
 # ==================== 数据定义 ====================
 
-# 地图数据 (烽火地带)
+# 地图列表
+MAP_LIST = ["大坝", "长弓", "巴克什", "航天", "监狱"]
+
+# 每个地图可选的模式
+MAP_MODES = {
+    "大坝": ["普通", "机密"],
+    "长弓": ["普通", "机密"],
+    "巴克什": ["机密", "绝密"],
+    "航天": ["机密", "绝密"],
+    "监狱": ["绝密", "自适应"],
+}
+
+# 地图基础信息
 MAPS_DATA = {
-    "普通大坝": {
-        "description": "入门级大坝地图，物资分布均匀，适合新手练习",
+    "大坝": {
+        "description": "大坝地图，经典搜打撤地图，多层建筑结构",
         "size": "中型",
-        "difficulty": "简单",
-        "player_count": "8-12人",
         "loot_zones": ["发电站", "控制室", "水闸", "仓库区", "办公楼", "地下通道"],
         "hot_zones": ["控制室", "仓库区"],
         "extract_points": ["大坝顶部", "河岸", "公路"],
     },
-    "机密大坝": {
-        "description": "进阶大坝地图，高价值物资较多，PVP频繁",
-        "size": "中型",
-        "difficulty": "中等",
-        "player_count": "10-14人",
-        "loot_zones": ["机密档案室", "发电站", "控制中心", "水闸", "武器库", "地下层"],
-        "hot_zones": ["机密档案室", "武器库"],
-        "extract_points": ["直升机坪", "大坝底部", "紧急通道"],
-    },
-    "绝密大坝": {
-        "description": "高难度大坝地图，顶级物资集中，竞争激烈",
+    "长弓": {
+        "description": "森林地图，地形复杂，适合中远距离作战",
         "size": "大型",
-        "difficulty": "困难",
-        "player_count": "12-16人",
-        "loot_zones": ["绝密实验室", "核心控制室", "武器仓库", "数据中心", "地下掩体", "停机坪"],
-        "hot_zones": ["绝密实验室", "核心控制室"],
-        "extract_points": ["VIP撤离点", "水下通道", "直升机"],
-    },
-    "普通长弓": {
-        "description": "入门级森林地图，地形复杂，适合中距离作战",
-        "size": "中型",
-        "difficulty": "简单",
-        "player_count": "8-12人",
         "loot_zones": ["林中小屋", "瞭望塔", "营地", "溪流", "伐木场", "猎人小屋"],
         "hot_zones": ["营地", "伐木场"],
         "extract_points": ["森林边缘", "小路", "河流"],
     },
-    "机密长弓": {
-        "description": "进阶森林地图，隐藏点多，高价值物资分散",
-        "size": "大型",
-        "difficulty": "中等",
-        "player_count": "10-14人",
-        "loot_zones": ["秘密基地", "废弃工厂", "通讯站", "弹药库", "指挥所", "地堡"],
-        "hot_zones": ["秘密基地", "弹药库"],
-        "extract_points": ["直升机坪", "山路", "隧道"],
-    },
-    "机密巴克什": {
+    "巴克什": {
         "description": "沙漠地图，开阔地形，远距离狙击为主",
         "size": "大型",
-        "difficulty": "中等",
-        "player_count": "10-14人",
         "loot_zones": ["清真寺", "集市", "军营", "油田", "废墟", "堡垒"],
         "hot_zones": ["军营", "堡垒"],
         "extract_points": ["沙漠边缘", "直升机", "车队"],
     },
-    "绝密巴克什": {
-        "description": "高难度沙漠地图，顶级物资，PVP激烈",
+    "航天": {
+        "description": "航天中心地图，科技感十足，多层建筑",
         "size": "大型",
-        "difficulty": "困难",
-        "player_count": "12-16人",
-        "loot_zones": ["地下基地", "军火库", "情报中心", "油井", "通讯塔", "秘密仓库"],
-        "hot_zones": ["地下基地", "军火库"],
-        "extract_points": ["VIP撤离", "装甲车", "直升机"],
-    },
-    "机密航天": {
-        "description": "航天中心地图，科技感十足，高价值物资",
-        "size": "大型",
-        "difficulty": "中等",
-        "player_count": "10-14人",
         "loot_zones": ["发射台", "控制中心", "研究所", "仓储区", "停机坪", "地下设施"],
         "hot_zones": ["控制中心", "研究所"],
         "extract_points": ["直升机", "紧急通道", "停车场"],
     },
-    "绝密航天": {
-        "description": "高难度航天地图，顶级科技物资，竞争极其激烈",
-        "size": "大型",
-        "difficulty": "困难",
-        "player_count": "12-16人",
-        "loot_zones": ["核心实验室", "卫星控制室", "数据中心", "武器测试区", "地下掩体", "VIP区"],
-        "hot_zones": ["核心实验室", "卫星控制室"],
-        "extract_points": ["VIP直升机", "地下隧道", "紧急撤离点"],
-    },
     "监狱": {
         "description": "监狱地图，CQB为主，近距离交战频繁",
         "size": "中型",
-        "difficulty": "中等",
-        "player_count": "10-14人",
         "loot_zones": ["牢房区", "食堂", "操场", "医务室", "监控室", "地下通道"],
         "hot_zones": ["监控室", "医务室"],
         "extract_points": ["正门", "后门", "下水道"],
     },
-    "自适应监狱": {
-        "description": "动态监狱地图，难度自适应，物资随机性高",
-        "size": "中型",
-        "difficulty": "中等-困难",
-        "player_count": "10-14人",
-        "loot_zones": ["高安全牢房", "行刑室", "武器库", "典狱长办公室", "地下层", "逃生通道"],
-        "hot_zones": ["武器库", "典狱长办公室"],
-        "extract_points": ["紧急出口", "直升机", "下水道"],
-    },
 }
 
-# 物资出货概率数据
-LOOT_PROBABILITY = {
-    "普通大坝": {
-        "高级武器": 8, "中级武器": 30, "低级武器": 62,
-        "高级护甲": 5, "中级护甲": 25, "低级护甲": 45,
-        "医疗物资": 50, "弹药": 85, "钥匙卡": 2, "情报文件": 3,
+# 模式难度信息
+MODE_INFO = {
+    "普通": {"difficulty": "简单", "player_count": "8-12人", "loot_modifier": 1.0},
+    "机密": {"difficulty": "中等", "player_count": "10-14人", "loot_modifier": 1.5},
+    "绝密": {"difficulty": "困难", "player_count": "12-16人", "loot_modifier": 2.0},
+    "自适应": {"difficulty": "动态", "player_count": "10-14人", "loot_modifier": 1.8},
+}
+
+# 基础出货概率 (会根据模式倍率调整)
+BASE_LOOT_PROBABILITY = {
+    "大坝": {
+        "高级武器": 10, "中级武器": 30, "低级武器": 60,
+        "高级护甲": 8, "中级护甲": 25, "低级护甲": 45,
+        "医疗物资": 50, "弹药": 85, "钥匙卡": 3, "情报文件": 4,
     },
-    "机密大坝": {
-        "高级武器": 15, "中级武器": 38, "低级武器": 47,
-        "高级护甲": 12, "中级护甲": 32, "低级护甲": 38,
-        "医疗物资": 55, "弹药": 80, "钥匙卡": 6, "情报文件": 8,
+    "长弓": {
+        "高级武器": 12, "中级武器": 32, "低级武器": 56,
+        "高级护甲": 9, "中级护甲": 27, "低级护甲": 42,
+        "医疗物资": 48, "弹药": 82, "钥匙卡": 4, "情报文件": 5,
     },
-    "绝密大坝": {
-        "高级武器": 25, "中级武器": 42, "低级武器": 33,
-        "高级护甲": 20, "中级护甲": 38, "低级护甲": 30,
-        "医疗物资": 60, "弹药": 75, "钥匙卡": 12, "情报文件": 15,
+    "巴克什": {
+        "高级武器": 15, "中级武器": 35, "低级武器": 50,
+        "高级护甲": 12, "中级护甲": 30, "低级护甲": 40,
+        "医疗物资": 50, "弹药": 80, "钥匙卡": 6, "情报文件": 8,
     },
-    "普通长弓": {
-        "高级武器": 10, "中级武器": 32, "低级武器": 58,
-        "高级护甲": 6, "中级护甲": 26, "低级护甲": 42,
-        "医疗物资": 48, "弹药": 82, "钥匙卡": 3, "情报文件": 4,
-    },
-    "机密长弓": {
-        "高级武器": 18, "中级武器": 40, "低级武器": 42,
-        "高级护甲": 14, "中级护甲": 34, "低级护甲": 36,
-        "医疗物资": 52, "弹药": 78, "钥匙卡": 7, "情报文件": 9,
-    },
-    "机密巴克什": {
-        "高级武器": 18, "中级武器": 40, "低级武器": 42,
-        "高级护甲": 15, "中级护甲": 35, "低级护甲": 35,
-        "医疗物资": 50, "弹药": 80, "钥匙卡": 8, "情报文件": 10,
-    },
-    "绝密巴克什": {
-        "高级武器": 28, "中级武器": 43, "低级武器": 29,
-        "高级护甲": 22, "中级护甲": 40, "低级护甲": 28,
-        "医疗物资": 58, "弹药": 72, "钥匙卡": 14, "情报文件": 18,
-    },
-    "机密航天": {
-        "高级武器": 20, "中级武器": 42, "低级武器": 38,
-        "高级护甲": 16, "中级护甲": 36, "低级护甲": 34,
-        "医疗物资": 55, "弹药": 75, "钥匙卡": 10, "情报文件": 12,
-    },
-    "绝密航天": {
-        "高级武器": 30, "中级武器": 44, "低级武器": 26,
-        "高级护甲": 25, "中级护甲": 42, "低级护甲": 25,
-        "医疗物资": 62, "弹药": 70, "钥匙卡": 16, "情报文件": 20,
+    "航天": {
+        "高级武器": 18, "中级武器": 38, "低级武器": 44,
+        "高级护甲": 15, "中级护甲": 33, "低级护甲": 38,
+        "医疗物资": 55, "弹药": 75, "钥匙卡": 8, "情报文件": 10,
     },
     "监狱": {
-        "高级武器": 16, "中级武器": 38, "低级武器": 46,
-        "高级护甲": 12, "中级护甲": 32, "低级护甲": 38,
-        "医疗物资": 55, "弹药": 78, "钥匙卡": 6, "情报文件": 8,
-    },
-    "自适应监狱": {
-        "高级武器": 22, "中级武器": 42, "低级武器": 36,
-        "高级护甲": 18, "中级护甲": 38, "低级护甲": 32,
-        "医疗物资": 58, "弹药": 75, "钥匙卡": 10, "情报文件": 12,
+        "高级武器": 16, "中级武器": 36, "低级武器": 48,
+        "高级护甲": 13, "中级护甲": 31, "低级护甲": 40,
+        "医疗物资": 55, "弹药": 78, "钥匙卡": 7, "情报文件": 9,
     },
 }
 
-# 战备推荐数据
+# 战备推荐数据 (按地图)
 LOADOUT_RECOMMENDATIONS = {
-    "普通大坝": {
-        "主武器": ["M4A1", "AK-47", "SCAR-L"],
-        "副武器": ["格洛克18", "M1911"],
-        "推荐护甲": "3-4级防弹衣",
-        "推荐配件": ["红点瞄具", "垂直握把", "扩容弹匣"],
-        "必带物资": ["止血带x2", "医疗包x1", "止痛药x2"],
-        "战术建议": "新手入门图，控制室和仓库区物资较好。建议先熟悉地图路线，低成本试错。",
-        "风险等级": "低",
-        "预估成本": 60000,
-    },
-    "机密大坝": {
-        "主武器": ["M4A1", "HK416", "AK-47"],
+    "大坝": {
+        "主武器": ["M4A1", "AK-47", "HK416"],
         "副武器": ["格洛克18", "沙漠之鹰"],
-        "推荐护甲": "4-5级防弹衣",
         "推荐配件": ["4倍镜", "消音器", "垂直握把", "扩容弹匣"],
-        "必带物资": ["止血带x3", "医疗包x1", "止痛药x3"],
-        "战术建议": "机密档案室和武器库是必争之地，建议组队前往。注意水闸区域的伏击点。",
-        "风险等级": "中",
-        "预估成本": 100000,
+        "必带物资": ["止血带x3", "医疗包x1", "止痛药x2"],
+        "战术建议": "控制室和仓库区是必争之地。注意水闸区域的伏击点，多层建筑清角要仔细。",
     },
-    "绝密大坝": {
-        "主武器": ["HK416", "SCAR-H", "M4A1"],
-        "副武器": ["MP5", "沙漠之鹰"],
-        "推荐护甲": "5-6级防弹衣 + 头盔",
-        "推荐配件": ["4倍镜", "消音器", "战术握把", "扩容弹匣"],
-        "必带物资": ["止血带x4", "医疗包x2", "肾上腺素x1"],
-        "战术建议": "顶级大坝地图，绝密实验室必出高级物资但风险极高。规划撤离路线，准备高级装备。",
-        "风险等级": "极高",
-        "预估成本": 200000,
-    },
-    "普通长弓": {
-        "主武器": ["M4A1", "AK-47", "SCAR-L"],
-        "副武器": ["格洛克18", "M1911"],
-        "推荐护甲": "3-4级防弹衣",
-        "推荐配件": ["4倍镜", "垂直握把", "扩容弹匣"],
-        "必带物资": ["止血带x2", "医疗包x1", "烟雾弹x1"],
-        "战术建议": "森林地图，利用地形掩护。营地和伐木场物资较集中，注意林中埋伏。",
-        "风险等级": "低",
-        "预估成本": 65000,
-    },
-    "机密长弓": {
-        "主武器": ["M4A1", "HK416", "狙击步枪"],
+    "长弓": {
+        "主武器": ["M4A1", "狙击步枪", "SCAR-H"],
         "副武器": ["MP5", "格洛克18"],
-        "推荐护甲": "4-5级防弹衣",
         "推荐配件": ["4-8倍镜", "消音器", "两脚架", "扩容弹匣"],
-        "必带物资": ["止血带x3", "医疗包x1", "烟雾弹x2"],
-        "战术建议": "秘密基地和弹药库是高价值区，地形复杂注意听脚步声。远近结合的配装更佳。",
-        "风险等级": "中",
-        "预估成本": 120000,
+        "必带物资": ["止血带x2", "医疗包x1", "烟雾弹x2"],
+        "战术建议": "森林地图利用地形掩护，营地和伐木场物资集中。远近结合配装更佳。",
     },
-    "机密巴克什": {
+    "巴克什": {
         "主武器": ["狙击步枪", "DMR", "SCAR-H"],
         "副武器": ["M4A1", "MP5"],
-        "推荐护甲": "4-5级防弹衣",
         "推荐配件": ["8倍镜", "消音器", "两脚架", "扩容弹匣"],
         "必带物资": ["止血带x2", "医疗包x1", "烟雾弹x3"],
         "战术建议": "沙漠开阔地形，狙击为主。军营和堡垒是高价值区，利用烟雾弹转移。",
-        "风险等级": "中",
-        "预估成本": 130000,
     },
-    "绝密巴克什": {
-        "主武器": ["狙击步枪", "SCAR-H", "HK416"],
-        "副武器": ["MP7", "沙漠之鹰"],
-        "推荐护甲": "5-6级防弹衣 + 头盔",
-        "推荐配件": ["8倍镜", "消音器", "两脚架", "扩容弹匣"],
-        "必带物资": ["止血带x4", "医疗包x2", "烟雾弹x3", "肾上腺素x1"],
-        "战术建议": "地下基地和军火库是顶级刷新点，但PVP非常激烈。建议满配进场，组队行动。",
-        "风险等级": "极高",
-        "预估成本": 220000,
-    },
-    "机密航天": {
-        "主武器": ["M4A1", "HK416", "AK-47"],
-        "副武器": ["MP5", "格洛克18"],
-        "推荐护甲": "4-5级防弹衣 + 头盔",
-        "推荐配件": ["全息瞄具", "消音器", "战术握把", "扩容弹匣"],
+    "航天": {
+        "主武器": ["HK416", "M4A1", "Vector"],
+        "副武器": ["MP7", "格洛克18"],
+        "推荐配件": ["全息/红点瞄具", "消音器", "激光指示器", "扩容弹匣"],
         "必带物资": ["止血带x3", "医疗包x2", "闪光弹x2"],
         "战术建议": "控制中心和研究所物资丰富，多层建筑注意高低差。清角要仔细。",
-        "风险等级": "中",
-        "预估成本": 140000,
-    },
-    "绝密航天": {
-        "主武器": ["HK416", "SCAR-H", "Vector"],
-        "副武器": ["MP7", "沙漠之鹰"],
-        "推荐护甲": "6级防弹衣 + 头盔",
-        "推荐配件": ["全息/红点瞄具", "消音器", "激光指示器", "扩容弹匣"],
-        "必带物资": ["止血带x4", "医疗包x2", "肾上腺素x1", "闪光弹x2"],
-        "战术建议": "核心实验室和卫星控制室是必争之地，出货率最高但风险极大。满配+组队必须。",
-        "风险等级": "极高",
-        "预估成本": 260000,
     },
     "监狱": {
-        "主武器": ["MP5", "UMP45", "P90"],
+        "主武器": ["MP5", "P90", "Vector"],
         "副武器": ["霰弹枪", "格洛克18"],
-        "推荐护甲": "4-5级防弹衣 + 头盔",
         "推荐配件": ["红点瞄具", "战术手电", "激光指示器", "扩容弹匣"],
         "必带物资": ["止血带x3", "医疗包x2", "闪光弹x2"],
         "战术建议": "CQB地图，冲锋枪/霰弹枪为主。监控室和医务室是高价值区，听脚步声很重要。",
-        "风险等级": "中",
-        "预估成本": 110000,
-    },
-    "自适应监狱": {
-        "主武器": ["MP7", "Vector", "P90"],
-        "副武器": ["霰弹枪", "沙漠之鹰"],
-        "推荐护甲": "5级防弹衣 + 头盔",
-        "推荐配件": ["红点瞄具", "消音器", "激光指示器", "扩容弹匣"],
-        "必带物资": ["止血带x4", "医疗包x2", "闪光弹x2"],
-        "战术建议": "难度自适应，武器库和典狱长办公室是核心区域。地下层常有高价值物资。",
-        "风险等级": "高",
-        "预估成本": 150000,
     },
 }
 
-# 收益数据
+# 模式对应的推荐护甲和成本
+MODE_LOADOUT = {
+    "普通": {"推荐护甲": "3-4级防弹衣", "风险等级": "低", "预估成本": 60000},
+    "机密": {"推荐护甲": "4-5级防弹衣 + 头盔", "风险等级": "中", "预估成本": 120000},
+    "绝密": {"推荐护甲": "5-6级防弹衣 + 头盔", "风险等级": "极高", "预估成本": 220000},
+    "自适应": {"推荐护甲": "5级防弹衣 + 头盔", "风险等级": "高", "预估成本": 150000},
+}
+
+# 收益数据 (按模式)
 REVENUE_DATA = {
-    "普通模式": {"出金率": "20%", "平均收益": 150000, "风险": "低"},
-    "哈夫币模式": {"出金率": "45%", "平均收益": 450000, "风险": "中"},
-    "绝密行动": {"出金率": "80%", "平均收益": 1200000, "风险": "极高"},
+    "普通": {"出金率": "25%", "平均收益": 120000, "风险": "低"},
+    "机密": {"出金率": "45%", "平均收益": 350000, "风险": "中"},
+    "绝密": {"出金率": "70%", "平均收益": 800000, "风险": "极高"},
+    "自适应": {"出金率": "55%", "平均收益": 500000, "风险": "高"},
 }
 
 # 护甲成本
@@ -341,7 +201,7 @@ OPERATORS_DATA = {
         "麦小雯": {
             "技能": "闪电突击 - 短时间内提升移动速度和换弹速度",
             "被动": "枪械后坐力降低10%",
-            "适合地图": ["监狱", "自适应监狱", "绝密航天", "机密航天"],
+            "适合地图": ["监狱", "航天"],
             "推荐武器": ["冲锋枪", "突击步枪"],
             "评分": 9.2,
             "难度": "中等",
@@ -350,7 +210,7 @@ OPERATORS_DATA = {
         "威龙": {
             "技能": "战术无人机 - 侦察敌人位置",
             "被动": "瞄准速度提升15%",
-            "适合地图": ["机密大坝", "机密长弓", "机密巴克什", "绝密巴克什"],
+            "适合地图": ["大坝", "长弓", "巴克什"],
             "推荐武器": ["突击步枪", "狙击步枪"],
             "评分": 8.8,
             "难度": "简单",
@@ -359,7 +219,7 @@ OPERATORS_DATA = {
         "疾风": {
             "技能": "翻滚闪避 - 快速位移躲避伤害",
             "被动": "冲刺速度提升20%",
-            "适合地图": ["监狱", "自适应监狱", "绝密航天"],
+            "适合地图": ["监狱", "航天"],
             "推荐武器": ["冲锋枪", "霰弹枪"],
             "评分": 8.5,
             "难度": "困难",
@@ -370,7 +230,7 @@ OPERATORS_DATA = {
         "比特": {
             "技能": "机械蜘蛛 - 自爆腐蚀敌人，增加受到伤害",
             "被动": "陷阱放置速度提升25%",
-            "适合地图": ["绝密航天", "机密航天", "监狱", "自适应监狱"],
+            "适合地图": ["航天", "监狱", "大坝"],
             "推荐武器": ["冲锋枪", "突击步枪"],
             "评分": 8.7,
             "难度": "中等",
@@ -379,7 +239,7 @@ OPERATORS_DATA = {
         "老太": {
             "技能": "加固板 - 强化门窗防护",
             "被动": "防护装备耐久+15%",
-            "适合地图": ["普通大坝", "普通长弓", "机密大坝"],
+            "适合地图": ["大坝", "长弓"],
             "推荐武器": ["突击步枪", "轻机枪"],
             "评分": 7.5,
             "难度": "简单",
@@ -390,7 +250,7 @@ OPERATORS_DATA = {
         "蜂医": {
             "技能": "治疗针剂 - 快速恢复队友生命",
             "被动": "医疗物品效果+20%",
-            "适合地图": ["绝密大坝", "绝密巴克什", "绝密航天", "机密航天"],
+            "适合地图": ["巴克什", "航天", "监狱"],
             "推荐武器": ["冲锋枪", "手枪"],
             "评分": 9.0,
             "难度": "简单",
@@ -399,7 +259,7 @@ OPERATORS_DATA = {
         "深蓝": {
             "技能": "肾上腺素注射 - 暂时免疫伤害",
             "被动": "自我恢复速度+30%",
-            "适合地图": ["绝密航天", "监狱", "自适应监狱"],
+            "适合地图": ["航天", "监狱"],
             "推荐武器": ["突击步枪", "冲锋枪"],
             "评分": 8.3,
             "难度": "中等",
@@ -410,7 +270,7 @@ OPERATORS_DATA = {
         "无名": {
             "技能": "隐身披风 - 短时间隐形",
             "被动": "脚步声降低50%",
-            "适合地图": ["监狱", "自适应监狱", "绝密航天", "机密大坝"],
+            "适合地图": ["监狱", "航天", "大坝"],
             "推荐武器": ["冲锋枪", "近战武器"],
             "评分": 8.9,
             "难度": "困难",
@@ -419,7 +279,7 @@ OPERATORS_DATA = {
         "哈夫克": {
             "技能": "脑机接口 - 标记敌人",
             "被动": "敌人标记持续时间+5秒",
-            "适合地图": ["机密巴克什", "绝密巴克什", "机密长弓", "普通长弓"],
+            "适合地图": ["巴克什", "长弓"],
             "推荐武器": ["狙击步枪", "DMR"],
             "评分": 8.6,
             "难度": "中等",
@@ -531,6 +391,12 @@ with st.sidebar:
 
 # ==================== 功能模块 ====================
 
+# 辅助函数：计算出货概率
+def get_loot_probability(map_name, mode):
+    base_probs = BASE_LOOT_PROBABILITY[map_name]
+    modifier = MODE_INFO[mode]["loot_modifier"]
+    return {item: min(prob * modifier, 95) for item, prob in base_probs.items()}
+
 if menu == "🏠 战备配置":
     st.title("🚀 战备配置与收益预测")
     st.caption("当前状态：系统在线 | 实时计算 | S6赛季阿萨拉")
@@ -539,8 +405,11 @@ if menu == "🏠 战备配置":
     
     with col1:
         st.subheader("🛠️ 配置参数")
-        selected_map = st.selectbox("选择地图", list(MAPS_DATA.keys()))
-        difficulty = st.selectbox("选择模式", list(REVENUE_DATA.keys()))
+        # 地图和模式分开选择
+        selected_map = st.selectbox("选择地图", MAP_LIST)
+        available_modes = MAP_MODES[selected_map]
+        selected_mode = st.selectbox("选择模式", available_modes)
+        
         armor_level = st.slider("护甲等级 (3-6级)", 3, 6, 5)
         ammo_price = st.number_input("单发子弹价格 (哈夫币)", value=850, step=50)
         ammo_count = st.number_input("携带弹药数量", value=180, step=30)
@@ -553,7 +422,7 @@ if menu == "🏠 战备配置":
         
         # 计算逻辑
         total_cost = ARMOR_COST[armor_level] + (ammo_price * ammo_count) + extra_cost
-        revenue_info = REVENUE_DATA[difficulty]
+        revenue_info = REVENUE_DATA[selected_mode]
         expected_revenue = revenue_info["平均收益"]
         expected_profit = expected_revenue - total_cost
         
@@ -572,8 +441,11 @@ if menu == "🏠 战备配置":
         # 风险提示
         st.markdown("---")
         risk = revenue_info["风险"]
+        mode_info = MODE_INFO[selected_mode]
         if risk == "极高":
             st.error(f"⚠️ 风险等级: {risk} - 建议携带最高级装备，组队行动！")
+        elif risk == "高":
+            st.warning(f"⚡ 风险等级: {risk} - 难度动态变化，注意适应")
         elif risk == "中":
             st.warning(f"⚡ 风险等级: {risk} - 注意战术配合，规划撤离路线")
         else:
@@ -581,16 +453,17 @@ if menu == "🏠 战备配置":
     
     # 地图信息
     st.markdown("---")
-    st.subheader(f"🗺️ {selected_map} - 地图信息")
+    st.subheader(f"🗺️ {selected_map} ({selected_mode}) - 地图信息")
     map_info = MAPS_DATA[selected_map]
+    mode_detail = MODE_INFO[selected_mode]
     
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown(f"**描述:** {map_info['description']}")
         st.markdown(f"**地图大小:** {map_info['size']}")
     with col2:
-        st.markdown(f"**难度:** {map_info['difficulty']}")
-        st.markdown(f"**玩家数:** {map_info['player_count']}")
+        st.markdown(f"**难度:** {mode_detail['difficulty']}")
+        st.markdown(f"**玩家数:** {mode_detail['player_count']}")
     with col3:
         st.markdown(f"**热点区域:** {', '.join(map_info['hot_zones'])}")
         st.markdown(f"**撤离点:** {', '.join(map_info['extract_points'])}")
@@ -858,7 +731,13 @@ elif menu == "🎰 爆率模拟器":
     with tab1:
         st.subheader("单次跑刀模拟")
         
-        sim_map = st.selectbox("选择地图", list(MAPS_DATA.keys()), key="sim_map")
+        col_sim1, col_sim2 = st.columns(2)
+        with col_sim1:
+            sim_map = st.selectbox("选择地图", MAP_LIST, key="sim_map")
+        with col_sim2:
+            sim_modes = MAP_MODES[sim_map]
+            sim_mode = st.selectbox("选择模式", sim_modes, key="sim_mode")
+        
         map_info = MAPS_DATA[sim_map]
         
         col1, col2 = st.columns(2)
@@ -870,7 +749,7 @@ elif menu == "🎰 爆率模拟器":
                 st.warning("🔥 这是热点区域！出货率+50%，但风险也更高！")
         
         if st.button("🎲 开始搜索！", type="primary"):
-            loot_probs = LOOT_PROBABILITY[sim_map]
+            loot_probs = get_loot_probability(sim_map, sim_mode)
             
             # 热点区域加成
             modifier = 1.5 if is_hot_zone else 1.0
@@ -926,12 +805,18 @@ elif menu == "🎰 爆率模拟器":
         st.subheader("批量模拟统计")
         st.markdown("模拟多次跑刀，统计平均收益")
         
-        sim_map2 = st.selectbox("选择地图", list(MAPS_DATA.keys()), key="sim_map2")
+        col_batch1, col_batch2 = st.columns(2)
+        with col_batch1:
+            sim_map2 = st.selectbox("选择地图", MAP_LIST, key="sim_map2")
+        with col_batch2:
+            sim_modes2 = MAP_MODES[sim_map2]
+            sim_mode2 = st.selectbox("选择模式", sim_modes2, key="sim_mode2")
+        
         sim_runs = st.slider("模拟次数", 10, 1000, 100)
         survival_rate = st.slider("预估存活率 (%)", 10, 100, 60)
         
         if st.button("🚀 开始批量模拟", type="primary"):
-            loot_probs = LOOT_PROBABILITY[sim_map2]
+            loot_probs = get_loot_probability(sim_map2, sim_mode2)
             
             all_runs = []
             for run in range(sim_runs):
@@ -994,20 +879,23 @@ elif menu == "🎰 爆率模拟器":
 elif menu == "📊 地图出货统计":
     st.title("📊 地图出货概率统计")
     
-    # 地图选择
+    # 地图和模式选择
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        selected_map = st.selectbox("选择地图", list(MAPS_DATA.keys()), key="loot_map")
+        selected_map = st.selectbox("选择地图", MAP_LIST, key="loot_map")
+        available_modes = MAP_MODES[selected_map]
+        selected_mode = st.selectbox("选择模式", available_modes, key="loot_mode")
         
         # 地图信息卡片
         map_info = MAPS_DATA[selected_map]
+        mode_info = MODE_INFO[selected_mode]
         st.markdown(f"""
-        ### 🗺️ {selected_map}
+        ### 🗺️ {selected_map} ({selected_mode})
         - **描述:** {map_info['description']}
         - **大小:** {map_info['size']}
-        - **难度:** {map_info['difficulty']}
-        - **玩家数:** {map_info['player_count']}
+        - **难度:** {mode_info['difficulty']}
+        - **玩家数:** {mode_info['player_count']}
         """)
         
         st.markdown("### 📍 刷新点位")
@@ -1018,11 +906,11 @@ elif menu == "📊 地图出货统计":
                 st.markdown(f"- {zone}")
     
     with col2:
-        # 出货概率图表
-        loot_data = LOOT_PROBABILITY[selected_map]
+        # 出货概率图表 (根据模式计算)
+        loot_data = get_loot_probability(selected_map, selected_mode)
         df = pd.DataFrame({
             "物资类型": list(loot_data.keys()),
-            "出货概率(%)": list(loot_data.values())
+            "出货概率(%)": [round(v, 1) for v in loot_data.values()]
         })
         
         # 柱状图
@@ -1032,7 +920,7 @@ elif menu == "📊 地图出货统计":
             y="出货概率(%)",
             color="出货概率(%)",
             color_continuous_scale="YlOrRd",
-            title=f"{selected_map} - 物资出货概率分布"
+            title=f"{selected_map} ({selected_mode}) - 物资出货概率分布"
         )
         fig.update_layout(
             plot_bgcolor='rgba(0,0,0,0)',
@@ -1045,10 +933,10 @@ elif menu == "📊 地图出货统计":
         # 雷达图
         fig_radar = go.Figure()
         fig_radar.add_trace(go.Scatterpolar(
-            r=list(loot_data.values()),
+            r=[round(v, 1) for v in loot_data.values()],
             theta=list(loot_data.keys()),
             fill='toself',
-            name=selected_map,
+            name=f"{selected_map} ({selected_mode})",
             line_color='#FFD700'
         ))
         fig_radar.update_layout(
@@ -1070,31 +958,36 @@ elif menu == "📊 地图出货统计":
     
     compare_items = st.multiselect(
         "选择要对比的物资类型",
-        list(LOOT_PROBABILITY["哈维斯特庄园"].keys()),
+        list(BASE_LOOT_PROBABILITY["大坝"].keys()),
         default=["高级武器", "高级护甲", "钥匙卡"]
     )
     
+    compare_mode = st.selectbox("对比模式", ["普通", "机密", "绝密"], key="compare_mode")
+    
     if compare_items:
         compare_data = []
-        for map_name, loot in LOOT_PROBABILITY.items():
-            for item in compare_items:
-                compare_data.append({
-                    "地图": map_name,
-                    "物资": item,
-                    "概率(%)": loot[item]
-                })
+        for map_name in MAP_LIST:
+            if compare_mode in MAP_MODES[map_name]:
+                loot = get_loot_probability(map_name, compare_mode)
+                for item in compare_items:
+                    compare_data.append({
+                        "地图": map_name,
+                        "物资": item,
+                        "概率(%)": round(loot[item], 1)
+                    })
         
-        df_compare = pd.DataFrame(compare_data)
-        fig_compare = px.bar(
-            df_compare,
-            x="地图",
-            y="概率(%)",
-            color="物资",
-            barmode="group",
-            title="各地图物资出货概率对比"
-        )
-        fig_compare.update_layout(
-            plot_bgcolor='rgba(0,0,0,0)',
+        if compare_data:
+            df_compare = pd.DataFrame(compare_data)
+            fig_compare = px.bar(
+                df_compare,
+                x="地图",
+                y="概率(%)",
+                color="物资",
+                barmode="group",
+                title=f"各地图物资出货概率对比 ({compare_mode}模式)"
+            )
+            fig_compare.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
             font_color='white'
         )
@@ -1103,11 +996,19 @@ elif menu == "📊 地图出货统计":
 elif menu == "🎒 装备推荐":
     st.title("🎒 最佳战备推荐")
     
-    selected_map = st.selectbox("选择目标地图", list(LOADOUT_RECOMMENDATIONS.keys()))
+    # 地图和模式选择
+    col_select1, col_select2 = st.columns(2)
+    with col_select1:
+        selected_map = st.selectbox("选择目标地图", MAP_LIST, key="loadout_map")
+    with col_select2:
+        available_modes = MAP_MODES[selected_map]
+        selected_mode = st.selectbox("选择模式", available_modes, key="loadout_mode")
+    
     loadout = LOADOUT_RECOMMENDATIONS[selected_map]
+    mode_loadout = MODE_LOADOUT[selected_mode]
     
     # 风险等级显示
-    risk = loadout["风险等级"]
+    risk = mode_loadout["风险等级"]
     if risk == "极高":
         st.error(f"⚠️ 风险等级: {risk}")
     elif risk == "高":
@@ -1130,7 +1031,7 @@ elif menu == "🎒 装备推荐":
     
     with col2:
         st.markdown("### 🛡️ 防护装备")
-        st.info(loadout["推荐护甲"])
+        st.info(mode_loadout["推荐护甲"])
         
         st.markdown("### 🔧 推荐配件")
         for attachment in loadout["推荐配件"]:
@@ -1142,7 +1043,7 @@ elif menu == "🎒 装备推荐":
             st.markdown(f"- {item}")
         
         st.markdown("### 💰 预估成本")
-        st.metric("总成本", f"{loadout['预估成本']:,} 哈夫币")
+        st.metric("总成本", f"{mode_loadout['预估成本']:,} 哈夫币")
     
     # 战术建议
     st.markdown("---")
@@ -1151,17 +1052,21 @@ elif menu == "🎒 装备推荐":
     
     # 地图所有装备对比
     st.markdown("---")
-    st.subheader("📊 各地图推荐装备对比")
+    st.subheader("📊 各地图+模式推荐装备对比")
     
     comparison_data = []
-    for map_name, rec in LOADOUT_RECOMMENDATIONS.items():
-        comparison_data.append({
-            "地图": map_name,
-            "主武器": rec["主武器"][0],
-            "护甲": rec["推荐护甲"],
-            "风险": rec["风险等级"],
-            "预估成本": f"{rec['预估成本']:,}"
-        })
+    for map_name in MAP_LIST:
+        for mode in MAP_MODES[map_name]:
+            rec = LOADOUT_RECOMMENDATIONS[map_name]
+            mode_rec = MODE_LOADOUT[mode]
+            comparison_data.append({
+                "地图": map_name,
+                "模式": mode,
+                "主武器": rec["主武器"][0],
+                "护甲": mode_rec["推荐护甲"],
+                "风险": mode_rec["风险等级"],
+                "预估成本": f"{mode_rec['预估成本']:,}"
+            })
     
     df_comparison = pd.DataFrame(comparison_data)
     st.dataframe(df_comparison, use_container_width=True, hide_index=True)
@@ -1190,8 +1095,9 @@ elif menu == "📈 数据管理":
         
         col1, col2 = st.columns(2)
         with col1:
-            record_map = st.selectbox("地图", list(MAPS_DATA.keys()), key="record_map")
-            record_mode = st.selectbox("模式", list(REVENUE_DATA.keys()), key="record_mode")
+            record_map = st.selectbox("地图", MAP_LIST, key="record_map")
+            record_modes = MAP_MODES[record_map]
+            record_mode = st.selectbox("模式", record_modes, key="record_mode")
             record_zone = st.selectbox("刷新点", MAPS_DATA[record_map]["loot_zones"])
         
         with col2:
