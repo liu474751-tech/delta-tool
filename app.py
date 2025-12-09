@@ -2,13 +2,14 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import random
+import numpy as np
 
 # 1. 页面配置 (必须在第一行)
 st.set_page_config(
-    page_title="三角洲战术终端 v3.0", 
+    page_title="三角洲战术终端 v4.0", 
     page_icon="🎯",
     layout="wide", 
     initial_sidebar_state="expanded"
@@ -366,13 +367,14 @@ RANK_DATA = {
 # ==================== 侧边栏导航 ====================
 
 with st.sidebar:
-    st.markdown("## 🎯 三角洲战术终端 v3.0")
+    st.markdown("## 🎯 三角洲战术终端 v4.0")
     st.markdown("---")
     
     menu = st.radio(
         "功能菜单",
         ["🏠 战备配置", "💰 战备计算器", "🎖️ 干员指南", "📊 地图出货统计", 
-         "🎰 爆率模拟器", "🎒 装备推荐", "📈 数据管理", "📋 游戏记录"],
+         "🎰 爆率模拟器", "🎒 装备推荐", "📈 数据管理", "📋 游戏记录",
+         "📉 深度分析", "🤖 智能推荐"],
         index=0
     )
     
@@ -1190,9 +1192,613 @@ elif menu == "📋 游戏记录":
         st.info("📝 暂无游戏记录")
         st.markdown("请前往 **数据管理** 页面添加记录")
 
+# ==================== 深度分析模块 ====================
+elif menu == "📉 深度分析":
+    st.title("📉 深度数据分析")
+    
+    # 检查是否有数据
+    if 'game_records' not in st.session_state or not st.session_state.game_records:
+        st.warning("⚠️ 暂无游戏记录，请先在「数据管理」中添加记录")
+        
+        # 生成示例数据按钮
+        st.markdown("---")
+        st.markdown("### 🎮 生成模拟数据进行体验")
+        if st.button("生成50条模拟数据", type="primary"):
+            st.session_state.game_records = []
+            for i in range(50):
+                map_name = random.choice(MAP_LIST)
+                mode = random.choice(MAP_MODES[map_name])
+                zone = random.choice(MAPS_DATA[map_name]["loot_zones"])
+                survived = random.random() > 0.35
+                items = ["高级武器", "中级武器", "低级武器", "医疗包", "弹药", "钥匙卡", "情报文件"]
+                item = random.choice(items)
+                value = random.randint(5000, 500000) if survived else 0
+                
+                # 模拟过去30天的数据
+                days_ago = random.randint(0, 30)
+                record_date = (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d %H:%M")
+                
+                st.session_state.game_records.append({
+                    "日期": record_date,
+                    "地图": map_name,
+                    "模式": mode,
+                    "刷新点": zone,
+                    "物资": item,
+                    "价值": value,
+                    "撤离": "✅" if survived else "❌"
+                })
+            st.session_state.total_games = 50
+            st.session_state.total_profit = sum(r["价值"] for r in st.session_state.game_records if r["撤离"] == "✅")
+            st.success("✅ 已生成50条模拟数据！")
+            st.rerun()
+    else:
+        df = pd.DataFrame(st.session_state.game_records)
+        df["日期时间"] = pd.to_datetime(df["日期"])
+        df["日期_only"] = df["日期时间"].dt.date
+        
+        # 顶部统计卡片
+        st.markdown("### 📊 综合统计概览")
+        col1, col2, col3, col4, col5 = st.columns(5)
+        
+        total_games = len(df)
+        survived_count = len(df[df["撤离"] == "✅"])
+        survival_rate = survived_count / total_games * 100 if total_games > 0 else 0
+        total_profit = df["价值"].sum()
+        avg_profit = df["价值"].mean()
+        max_profit = df["价值"].max()
+        
+        with col1:
+            st.metric("🎮 总局数", total_games)
+        with col2:
+            st.metric("✅ 存活率", f"{survival_rate:.1f}%")
+        with col3:
+            st.metric("💰 总收益", f"{total_profit:,.0f}")
+        with col4:
+            st.metric("📈 场均收益", f"{avg_profit:,.0f}")
+        with col5:
+            st.metric("🏆 最高单局", f"{max_profit:,.0f}")
+        
+        st.markdown("---")
+        
+        # 分析标签页
+        tab1, tab2, tab3, tab4 = st.tabs(["📈 趋势分析", "🗺️ 地图分析", "🎯 模式分析", "💎 收益分析"])
+        
+        with tab1:
+            st.markdown("### 📈 历史趋势分析")
+            
+            # 按日期聚合
+            daily_stats = df.groupby("日期_only").agg({
+                "价值": ["sum", "mean", "count"],
+                "撤离": lambda x: (x == "✅").sum() / len(x) * 100
+            }).reset_index()
+            daily_stats.columns = ["日期", "总收益", "场均收益", "局数", "存活率"]
+            
+            # 收益趋势图
+            fig_trend = go.Figure()
+            fig_trend.add_trace(go.Scatter(
+                x=daily_stats["日期"], y=daily_stats["总收益"],
+                mode='lines+markers', name='每日总收益',
+                line=dict(color='#FFD700', width=2),
+                marker=dict(size=8)
+            ))
+            fig_trend.update_layout(
+                title="每日收益趋势",
+                xaxis_title="日期", yaxis_title="收益 (哈夫币)",
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font_color='white'
+            )
+            st.plotly_chart(fig_trend, use_container_width=True)
+            
+            # 存活率趋势
+            col1, col2 = st.columns(2)
+            with col1:
+                fig_survival = go.Figure()
+                fig_survival.add_trace(go.Scatter(
+                    x=daily_stats["日期"], y=daily_stats["存活率"],
+                    mode='lines+markers', name='存活率',
+                    line=dict(color='#00FF00', width=2),
+                    fill='tozeroy', fillcolor='rgba(0,255,0,0.1)'
+                ))
+                fig_survival.update_layout(
+                    title="每日存活率趋势", yaxis_title="存活率 (%)",
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font_color='white'
+                )
+                st.plotly_chart(fig_survival, use_container_width=True)
+            
+            with col2:
+                fig_games = go.Figure()
+                fig_games.add_trace(go.Bar(
+                    x=daily_stats["日期"], y=daily_stats["局数"],
+                    marker_color='#4169E1', name='每日局数'
+                ))
+                fig_games.update_layout(
+                    title="每日游戏局数", yaxis_title="局数",
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font_color='white'
+                )
+                st.plotly_chart(fig_games, use_container_width=True)
+            
+            # 累计收益曲线
+            df_sorted = df.sort_values("日期时间")
+            df_sorted["累计收益"] = df_sorted["价值"].cumsum()
+            
+            fig_cumulative = go.Figure()
+            fig_cumulative.add_trace(go.Scatter(
+                x=list(range(1, len(df_sorted)+1)), y=df_sorted["累计收益"],
+                mode='lines', name='累计收益',
+                line=dict(color='#FF6B6B', width=3),
+                fill='tozeroy', fillcolor='rgba(255,107,107,0.2)'
+            ))
+            fig_cumulative.update_layout(
+                title="累计收益曲线",
+                xaxis_title="游戏局数", yaxis_title="累计收益 (哈夫币)",
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font_color='white'
+            )
+            st.plotly_chart(fig_cumulative, use_container_width=True)
+        
+        with tab2:
+            st.markdown("### 🗺️ 地图深度分析")
+            
+            # 地图统计
+            map_stats = df.groupby("地图").agg({
+                "价值": ["sum", "mean", "count"],
+                "撤离": lambda x: (x == "✅").sum() / len(x) * 100
+            }).reset_index()
+            map_stats.columns = ["地图", "总收益", "场均收益", "局数", "存活率"]
+            map_stats = map_stats.sort_values("总收益", ascending=False)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # 地图收益对比
+                fig_map_profit = px.bar(
+                    map_stats, x="地图", y="总收益",
+                    color="总收益", color_continuous_scale="Viridis",
+                    title="各地图总收益对比"
+                )
+                fig_map_profit.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font_color='white'
+                )
+                st.plotly_chart(fig_map_profit, use_container_width=True)
+            
+            with col2:
+                # 地图存活率对比
+                fig_map_survival = px.bar(
+                    map_stats, x="地图", y="存活率",
+                    color="存活率", color_continuous_scale="RdYlGn",
+                    title="各地图存活率对比"
+                )
+                fig_map_survival.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font_color='white'
+                )
+                st.plotly_chart(fig_map_survival, use_container_width=True)
+            
+            # 地图雷达图
+            categories = ["总收益", "场均收益", "局数", "存活率"]
+            fig_radar = go.Figure()
+            
+            for _, row in map_stats.iterrows():
+                values = [
+                    row["总收益"] / map_stats["总收益"].max() * 100,
+                    row["场均收益"] / map_stats["场均收益"].max() * 100,
+                    row["局数"] / map_stats["局数"].max() * 100,
+                    row["存活率"]
+                ]
+                fig_radar.add_trace(go.Scatterpolar(
+                    r=values + [values[0]],
+                    theta=categories + [categories[0]],
+                    name=row["地图"],
+                    fill='toself', opacity=0.6
+                ))
+            
+            fig_radar.update_layout(
+                polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
+                title="地图综合能力雷达图",
+                paper_bgcolor='rgba(0,0,0,0)', font_color='white'
+            )
+            st.plotly_chart(fig_radar, use_container_width=True)
+            
+            # 地图详细数据表
+            st.markdown("### 📋 地图详细数据")
+            map_stats_display = map_stats.copy()
+            map_stats_display["总收益"] = map_stats_display["总收益"].apply(lambda x: f"{x:,.0f}")
+            map_stats_display["场均收益"] = map_stats_display["场均收益"].apply(lambda x: f"{x:,.0f}")
+            map_stats_display["存活率"] = map_stats_display["存活率"].apply(lambda x: f"{x:.1f}%")
+            st.dataframe(map_stats_display, use_container_width=True, hide_index=True)
+        
+        with tab3:
+            st.markdown("### 🎯 模式深度分析")
+            
+            # 模式统计
+            mode_stats = df.groupby("模式").agg({
+                "价值": ["sum", "mean", "count"],
+                "撤离": lambda x: (x == "✅").sum() / len(x) * 100
+            }).reset_index()
+            mode_stats.columns = ["模式", "总收益", "场均收益", "局数", "存活率"]
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                fig_mode_profit = px.pie(
+                    mode_stats, values="总收益", names="模式",
+                    title="各模式收益占比", hole=0.4
+                )
+                fig_mode_profit.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', font_color='white'
+                )
+                st.plotly_chart(fig_mode_profit, use_container_width=True)
+            
+            with col2:
+                fig_mode_bar = px.bar(
+                    mode_stats, x="模式", y=["总收益", "场均收益"],
+                    barmode="group", title="模式收益对比"
+                )
+                fig_mode_bar.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font_color='white'
+                )
+                st.plotly_chart(fig_mode_bar, use_container_width=True)
+            
+            # 地图+模式组合分析
+            st.markdown("### 🔗 地图+模式组合分析")
+            combo_stats = df.groupby(["地图", "模式"]).agg({
+                "价值": ["sum", "mean", "count"],
+                "撤离": lambda x: (x == "✅").sum() / len(x) * 100
+            }).reset_index()
+            combo_stats.columns = ["地图", "模式", "总收益", "场均收益", "局数", "存活率"]
+            
+            # 热力图
+            pivot_profit = df.pivot_table(values="价值", index="地图", columns="模式", aggfunc="mean", fill_value=0)
+            
+            fig_heatmap = px.imshow(
+                pivot_profit, text_auto=".0f",
+                color_continuous_scale="YlOrRd",
+                title="地图+模式场均收益热力图"
+            )
+            fig_heatmap.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', font_color='white'
+            )
+            st.plotly_chart(fig_heatmap, use_container_width=True)
+            
+            # 组合排行榜
+            combo_stats_sorted = combo_stats.sort_values("场均收益", ascending=False)
+            st.markdown("### 🏆 最佳组合排行")
+            for i, (_, row) in enumerate(combo_stats_sorted.head(5).iterrows()):
+                medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"][i]
+                st.markdown(f"{medal} **{row['地图']} - {row['模式']}**: 场均 {row['场均收益']:,.0f} | 存活率 {row['存活率']:.1f}% | 局数 {row['局数']}")
+        
+        with tab4:
+            st.markdown("### 💎 收益深度分析")
+            
+            # 收益分布直方图
+            fig_dist = px.histogram(
+                df[df["价值"] > 0], x="价值", nbins=30,
+                title="收益分布 (仅成功撤离)",
+                color_discrete_sequence=["#FFD700"]
+            )
+            fig_dist.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font_color='white', xaxis_title="收益 (哈夫币)", yaxis_title="频次"
+            )
+            st.plotly_chart(fig_dist, use_container_width=True)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # 收益区间统计
+                df_survived = df[df["撤离"] == "✅"]
+                bins = [0, 50000, 100000, 200000, 500000, float('inf')]
+                labels = ["0-5万", "5-10万", "10-20万", "20-50万", "50万+"]
+                df_survived["收益区间"] = pd.cut(df_survived["价值"], bins=bins, labels=labels)
+                
+                range_stats = df_survived["收益区间"].value_counts().sort_index()
+                fig_range = px.pie(
+                    names=range_stats.index, values=range_stats.values,
+                    title="收益区间分布", hole=0.3
+                )
+                fig_range.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='white')
+                st.plotly_chart(fig_range, use_container_width=True)
+            
+            with col2:
+                # 物资收益排行
+                item_stats = df.groupby("物资")["价值"].agg(["sum", "mean", "count"]).reset_index()
+                item_stats.columns = ["物资", "总收益", "平均价值", "获取次数"]
+                item_stats = item_stats.sort_values("总收益", ascending=False).head(10)
+                
+                fig_items = px.bar(
+                    item_stats, y="物资", x="总收益", orientation='h',
+                    title="物资收益排行TOP10", color="总收益",
+                    color_continuous_scale="Viridis"
+                )
+                fig_items.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font_color='white'
+                )
+                st.plotly_chart(fig_items, use_container_width=True)
+            
+            # 风险收益分析
+            st.markdown("### ⚖️ 风险收益分析")
+            risk_data = []
+            for mode in df["模式"].unique():
+                mode_df = df[df["模式"] == mode]
+                survival = (mode_df["撤离"] == "✅").mean() * 100
+                avg_profit = mode_df[mode_df["撤离"] == "✅"]["价值"].mean() if len(mode_df[mode_df["撤离"] == "✅"]) > 0 else 0
+                expected_value = survival / 100 * avg_profit
+                risk_data.append({
+                    "模式": mode,
+                    "存活率": survival,
+                    "成功场均": avg_profit,
+                    "期望收益": expected_value
+                })
+            
+            risk_df = pd.DataFrame(risk_data)
+            fig_risk = px.scatter(
+                risk_df, x="存活率", y="成功场均", size="期望收益",
+                color="模式", title="风险收益散点图 (气泡大小=期望收益)",
+                size_max=50
+            )
+            fig_risk.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font_color='white', xaxis_title="存活率 (%)", yaxis_title="成功场均收益"
+            )
+            st.plotly_chart(fig_risk, use_container_width=True)
+            
+            st.dataframe(risk_df.round(1), use_container_width=True, hide_index=True)
+
+# ==================== 智能推荐模块 ====================
+elif menu == "🤖 智能推荐":
+    st.title("🤖 智能推荐系统")
+    
+    st.markdown("""
+    基于您的历史游戏数据，AI系统会分析您的游戏风格，
+    并推荐最适合您的地图、模式和装备配置。
+    """)
+    
+    if 'game_records' not in st.session_state or not st.session_state.game_records or len(st.session_state.game_records) < 5:
+        st.warning("⚠️ 需要至少5条游戏记录才能进行智能分析")
+        st.info("💡 请前往「数据管理」添加记录，或在「深度分析」页面生成模拟数据")
+    else:
+        df = pd.DataFrame(st.session_state.game_records)
+        
+        # 玩家画像分析
+        st.markdown("---")
+        st.markdown("## 🎭 玩家画像分析")
+        
+        total_games = len(df)
+        survived = len(df[df["撤离"] == "✅"])
+        survival_rate = survived / total_games * 100
+        avg_profit = df["价值"].mean()
+        
+        # 计算玩家类型
+        player_type = ""
+        player_desc = ""
+        player_color = ""
+        
+        if survival_rate >= 70:
+            if avg_profit >= 200000:
+                player_type = "🏆 精英猎人"
+                player_desc = "高存活、高收益，是顶级玩家！"
+                player_color = "#FFD700"
+            else:
+                player_type = "🛡️ 稳健玩家"
+                player_desc = "存活率极高，建议尝试更高难度地图提升收益"
+                player_color = "#4169E1"
+        elif survival_rate >= 50:
+            if avg_profit >= 150000:
+                player_type = "⚔️ 冒险家"
+                player_desc = "敢于冒险，收益不错！提高存活率可更进一步"
+                player_color = "#FF6B6B"
+            else:
+                player_type = "📈 成长型"
+                player_desc = "各方面均衡，继续积累经验"
+                player_color = "#32CD32"
+        else:
+            if avg_profit >= 100000:
+                player_type = "💀 高风险玩家"
+                player_desc = "收益不错但存活率偏低，建议提升生存技巧"
+                player_color = "#DC143C"
+            else:
+                player_type = "🌱 新手探索者"
+                player_desc = "还在学习阶段，建议从普通模式开始"
+                player_color = "#90EE90"
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); 
+                        padding: 2rem; border-radius: 20px; text-align: center;
+                        border: 2px solid {player_color};">
+                <h1 style="color: {player_color}; margin: 0;">{player_type}</h1>
+                <p style="color: #ccc; font-size: 1.2rem; margin-top: 10px;">{player_desc}</p>
+                <hr style="border-color: #333;">
+                <div style="display: flex; justify-content: space-around; margin-top: 1rem;">
+                    <div>
+                        <p style="color: #888; margin: 0;">存活率</p>
+                        <h2 style="color: #fff; margin: 0;">{survival_rate:.1f}%</h2>
+                    </div>
+                    <div>
+                        <p style="color: #888; margin: 0;">场均收益</p>
+                        <h2 style="color: #fff; margin: 0;">{avg_profit:,.0f}</h2>
+                    </div>
+                    <div>
+                        <p style="color: #888; margin: 0;">总局数</p>
+                        <h2 style="color: #fff; margin: 0;">{total_games}</h2>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # 智能推荐
+        st.markdown("## 🎯 个性化推荐")
+        
+        # 计算各地图和模式的表现
+        map_performance = df.groupby("地图").agg({
+            "价值": "mean",
+            "撤离": lambda x: (x == "✅").sum() / len(x) * 100
+        }).reset_index()
+        map_performance.columns = ["地图", "场均收益", "存活率"]
+        map_performance["综合得分"] = map_performance["场均收益"] / 1000 + map_performance["存活率"] * 2
+        
+        mode_performance = df.groupby("模式").agg({
+            "价值": "mean",
+            "撤离": lambda x: (x == "✅").sum() / len(x) * 100
+        }).reset_index()
+        mode_performance.columns = ["模式", "场均收益", "存活率"]
+        
+        # 最佳地图推荐
+        best_map = map_performance.loc[map_performance["综合得分"].idxmax()]
+        
+        # 基于玩家风格推荐模式
+        if survival_rate >= 60:
+            recommended_mode = "机密" if survival_rate < 75 else "绝密"
+            mode_reason = "您的存活率较高，可以挑战更高难度以获取更多收益"
+        else:
+            recommended_mode = "普通"
+            mode_reason = "建议先在普通模式提升技术，再挑战高难度"
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("### 🗺️ 推荐地图")
+            st.success(f"**{best_map['地图']}**")
+            st.markdown(f"""
+            - 📊 您的场均收益: **{best_map['场均收益']:,.0f}**
+            - ✅ 您的存活率: **{best_map['存活率']:.1f}%**
+            - 💡 推荐理由: 根据您的历史数据，这张地图是您表现最好的
+            """)
+            
+            # 该地图的装备推荐
+            st.markdown("#### 🎒 推荐装备")
+            rec = LOADOUT_RECOMMENDATIONS[best_map['地图']]
+            st.markdown(f"- 主武器: {', '.join(rec['主武器'])}")
+            st.markdown(f"- 副武器: {', '.join(rec['副武器'])}")
+            st.markdown(f"- 配件: {', '.join(rec['推荐配件'])}")
+        
+        with col2:
+            st.markdown("### 🎯 推荐模式")
+            st.success(f"**{recommended_mode}**")
+            st.markdown(f"""
+            - 💡 推荐理由: {mode_reason}
+            - ⚠️ 风险等级: **{MODE_LOADOUT[recommended_mode]['风险等级']}**
+            - 💰 预估成本: **{MODE_LOADOUT[recommended_mode]['预估成本']:,}**
+            - 🛡️ 推荐护甲: {MODE_LOADOUT[recommended_mode]['推荐护甲']}
+            """)
+        
+        st.markdown("---")
+        
+        # 提升建议
+        st.markdown("## 💡 提升建议")
+        
+        suggestions = []
+        
+        # 存活率建议
+        if survival_rate < 50:
+            suggestions.append({
+                "icon": "🛡️",
+                "title": "提升存活率",
+                "content": "您的存活率偏低，建议: 1) 选择更高级的护甲 2) 多带医疗物资 3) 学习地图撤离点位置 4) 避开热门区域"
+            })
+        
+        # 收益建议
+        if avg_profit < 100000:
+            suggestions.append({
+                "icon": "💰",
+                "title": "提升收益",
+                "content": "场均收益偏低，建议: 1) 熟悉高价值物资刷新点 2) 携带足够空间的背包 3) 优先搜索热门区域 4) 尝试机密/绝密模式"
+            })
+        
+        # 地图多样性
+        maps_played = df["地图"].nunique()
+        if maps_played < 3:
+            suggestions.append({
+                "icon": "🗺️",
+                "title": "探索更多地图",
+                "content": f"您只玩过{maps_played}张地图，建议尝试其他地图，不同地图有不同的策略和收益特点"
+            })
+        
+        # 模式多样性
+        modes_played = df["模式"].nunique()
+        if modes_played < 2:
+            suggestions.append({
+                "icon": "🎯",
+                "title": "尝试不同模式",
+                "content": "建议尝试不同难度模式，积累经验后逐步挑战更高难度"
+            })
+        
+        if not suggestions:
+            suggestions.append({
+                "icon": "🏆",
+                "title": "表现优秀",
+                "content": "您的数据表现非常好！继续保持，挑战更高难度获取更多收益"
+            })
+        
+        for s in suggestions:
+            st.markdown(f"""
+            <div style="background: #1e1e2e; padding: 1rem; border-radius: 10px; margin-bottom: 1rem; border-left: 4px solid #FFD700;">
+                <h4 style="margin: 0;">{s['icon']} {s['title']}</h4>
+                <p style="color: #ccc; margin: 0.5rem 0 0 0;">{s['content']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # 预测下一局
+        st.markdown("## 🔮 下一局预测")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            pred_map = st.selectbox("选择地图", MAP_LIST, key="pred_map")
+        with col2:
+            pred_modes = MAP_MODES[pred_map]
+            pred_mode = st.selectbox("选择模式", pred_modes, key="pred_mode")
+        with col3:
+            st.markdown("&nbsp;")  # 占位
+            if st.button("🔮 预测结果", type="primary"):
+                # 基于历史数据预测
+                similar_games = df[(df["地图"] == pred_map) & (df["模式"] == pred_mode)]
+                
+                if len(similar_games) >= 3:
+                    pred_survival = (similar_games["撤离"] == "✅").mean() * 100
+                    pred_profit = similar_games[similar_games["撤离"] == "✅"]["价值"].mean() if len(similar_games[similar_games["撤离"] == "✅"]) > 0 else 0
+                    confidence = min(len(similar_games) * 10, 90)
+                else:
+                    # 使用默认数据
+                    mode_info = MODE_INFO[pred_mode]
+                    pred_survival = 50 / mode_info["loot_modifier"]
+                    pred_profit = 100000 * mode_info["loot_modifier"]
+                    confidence = 30
+                
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #2d2d44 0%, #1a1a2e 100%); 
+                            padding: 1.5rem; border-radius: 15px; margin-top: 1rem;">
+                    <h3 style="color: #FFD700; text-align: center;">🔮 预测结果</h3>
+                    <div style="display: flex; justify-content: space-around; margin-top: 1rem;">
+                        <div style="text-align: center;">
+                            <p style="color: #888; margin: 0;">预测存活率</p>
+                            <h2 style="color: #00FF00; margin: 0;">{pred_survival:.1f}%</h2>
+                        </div>
+                        <div style="text-align: center;">
+                            <p style="color: #888; margin: 0;">预期收益</p>
+                            <h2 style="color: #FFD700; margin: 0;">{pred_profit:,.0f}</h2>
+                        </div>
+                        <div style="text-align: center;">
+                            <p style="color: #888; margin: 0;">置信度</p>
+                            <h2 style="color: #4169E1; margin: 0;">{confidence}%</h2>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
 # ==================== 页脚 ====================
 st.markdown("---")
 st.markdown(
-    "<p style='text-align: center; color: #666;'>🎮 三角洲战术终端 v3.0 | Built with Streamlit | 数据来源: TapTap社区 + 个人统计</p>",
+    "<p style='text-align: center; color: #666;'>🎮 三角洲战术终端 v4.0 | Built with Streamlit | 数据来源: TapTap社区 + 个人统计</p>",
     unsafe_allow_html=True
 )
