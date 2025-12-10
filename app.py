@@ -2427,19 +2427,71 @@ elif menu == "💻 实时监控":
     st.title("💻 实时游戏监控系统")
     st.caption("自动识别出生点和高价值物品 | 实时记录战局数据")
     
-    # 导入监控模块
-    try:
-        from game_monitor import get_monitor
-        monitor = get_monitor()
-        monitor_available = True
-    except Exception as e:
-        monitor_available = False
-        st.error(f"⚠️ 监控模块加载失败: {e}")
+    # 检测运行环境
+    import os
+    IS_CLOUD = os.getenv("STREAMLIT_SHARING_MODE") is not None or \
+               os.getenv("STREAMLIT_RUNTIME_ENV") == "cloud"
     
-    if not monitor_available:
-        st.warning("游戏监控功能暂不可用，请安装依赖库")
-        st.code("pip install opencv-python mss numpy", language="bash")
+    if IS_CLOUD:
+        # 云端环境提示
+        st.warning("⚠️ 游戏监控功能仅支持本地运行")
+        st.info("""
+        **为什么无法使用？**
+        
+        游戏监控需要捕获您的电脑屏幕，但 Streamlit Cloud 是远程服务器，无法访问您的本地屏幕。
+        
+        **如何使用实时监控？**
+        
+        请在您的电脑上本地运行此应用:
+        """)
+        
+        st.code("""
+# 1. 克隆仓库
+git clone https://github.com/liu474751-tech/delta-tool.git
+cd delta-tool
+
+# 2. 安装依赖
+pip install -r requirements.txt
+
+# 3. 运行应用
+streamlit run app.py
+        """, language="bash")
+        
+        st.success("""
+        💡 **提示**: 云端版本的其他功能 (战术地图、物资分析、数据管理等) 完全可用！
+        
+        您可以在本地记录数据后，导出CSV文件，然后在云端版本进行分析。
+        """)
+        
+        st.markdown("---")
+        st.markdown("### 📥 快速开始")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.link_button(
+                "📂 GitHub 仓库",
+                "https://github.com/liu474751-tech/delta-tool",
+                use_container_width=True
+            )
+        with col2:
+            st.link_button(
+                "📥 下载 ZIP",
+                "https://github.com/liu474751-tech/delta-tool/archive/refs/heads/main.zip",
+                use_container_width=True
+            )
+        
         monitor_available = False
+    else:
+        # 本地环境，正常加载监控模块
+        try:
+            from game_monitor import get_monitor
+            monitor = get_monitor()
+            monitor_available = True
+        except Exception as e:
+            monitor_available = False
+            st.error(f"⚠️ 监控模块加载失败: {e}")
+            st.warning("请安装依赖库")
+            st.code("pip install opencv-python mss numpy pillow", language="bash")
     
     if monitor_available:
         # 控制面板
