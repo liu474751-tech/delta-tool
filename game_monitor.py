@@ -435,6 +435,21 @@ class GameMonitor:
         print(f"✅ 对局记录已保存: {record['map']} - {'存活' if survived else '阵亡'} - 收益:{total_profit:,}")
 
 
+# 全局监控器实例
+_monitor_instance = None
+
+def get_monitor(data_dir=None):
+    """获取游戏监控器单例"""
+    global _monitor_instance
+    
+    if _monitor_instance is None:
+        if data_dir is None:
+            data_dir = Path.home() / "Documents" / "DeltaTool"
+        _monitor_instance = GameMonitor(str(data_dir))
+    
+    return _monitor_instance
+
+
 # 主函数 - 用于独立测试
 if __name__ == "__main__":
     import sys
