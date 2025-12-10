@@ -2573,6 +2573,97 @@ streamlit run app.py
             st.session_state.temp_profit = profit_input
         else:
             st.info("📌 当前没有活跃的游戏会话，点击'启动监控'开始")
+        
+        # OCR功能状态和管理
+        st.markdown("---")
+        st.markdown("## 🔍 OCR识别功能")
+        
+        try:
+            from game_ocr import get_ocr_engine, install_ocr_engine, OCR_AVAILABLE, OCR_ENGINE
+            data_dir = Path.home() / "Documents" / "DeltaTool"
+            ocr = get_ocr_engine(data_dir)
+            
+            if ocr.is_available():
+                st.success(f"✅ OCR引擎已就绪: {ocr.engine_type.upper()}")
+                
+                # 显示识别统计
+                spawn_stats = ocr.get_spawn_name_statistics()
+                
+                if spawn_stats:
+                    st.markdown("### 📊 识别到的出生点名称")
+                    
+                    st.info(f"共识别到 {len(spawn_stats)} 个不同的出生点")
+                    
+                    # 创建表格
+                    spawn_data = []
+                    for spawn_name, stats in spawn_stats.items():
+                        spawn_data.append({
+                            "出生点名称": spawn_name,
+                            "识别次数": stats["count"],
+                            "平均置信度": f"{stats['avg_confidence']:.2%}",
+                            "首次识别": stats["first_seen"][:10]  # 只显示日期
+                        })
+                    
+                    st.dataframe(spawn_data, use_container_width=True, hide_index=True)
+                    
+                    st.markdown("### 💡 使用这些数据")
+                    st.info("""
+                    **识别到的出生点名称可以用于：**
+                    1. 完善战术地图中的出生点命名
+                    2. 统计最常见的降落地点
+                    3. 优化出生点匹配算法
+                    
+                    **如何查看详细日志：**
+                    - 日志文件位于: `C:\\Users\\你的用户名\\Documents\\DeltaTool\\spawn_names_detected.json`
+                    - 截图保存在: `C:\\Users\\你的用户名\\Documents\\DeltaTool\\spawn_detection_*.png`
+                    """)
+                    
+                    # 导出功能
+                    if st.button("📥 导出出生点数据为CSV"):
+                        import pandas as pd
+                        df = pd.DataFrame(spawn_data)
+                        csv = df.to_csv(index=False, encoding='utf-8-sig')
+                        st.download_button(
+                            label="下载 CSV",
+                            data=csv,
+                            file_name=f"spawn_points_detected_{datetime.now().strftime('%Y%m%d')}.csv",
+                            mime="text/csv"
+                        )
+                else:
+                    st.info("🎯 开始游戏并启动监控，系统将自动识别降落地点名称")
+            
+            elif OCR_AVAILABLE:
+                st.warning(f"⚠️ OCR引擎 ({OCR_ENGINE}) 已安装但未初始化")
+            else:
+                st.warning("⚠️ OCR引擎未安装")
+                
+                with st.expander("📥 安装OCR引擎"):
+                    st.markdown("""
+                    **推荐方案（二选一）：**
+                    
+                    **1. EasyOCR** (简单易用，支持中英文)
+                    ```bash
+                    pip install easyocr
+                    ```
+                    
+                    **2. PaddleOCR** (中文识别更强)
+                    ```bash
+                    pip install paddlepaddle paddleocr
+                    ```
+                    
+                    安装后重启应用即可使用OCR功能。
+                    """)
+                    
+                    st.info("""
+                    **OCR功能作用：**
+                    - 🎯 自动识别降落地点文字
+                    - 📊 自动识别结算画面（撤离/阵亡、收益）
+                    - 📝 记录真实的游戏中文名称
+                    - 🗺️ 用于完善战术地图数据
+                    """)
+        
+        except Exception as e:
+            st.error(f"OCR模块加载失败: {e}")
 
 # ==================== 页脚 ====================
 st.markdown("---")

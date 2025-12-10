@@ -5,3 +5,8 @@ opencv-python>=4.8.0
 mss>=9.0.0
 numpy>=1.24.0
 pillow>=10.0.0
+
+# OCR引擎 (可选，二选一)
+# easyocr>=1.7.0
+# paddlepaddle>=2.5.0
+# paddleocr>=2.7.0

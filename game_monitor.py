@@ -1,6 +1,7 @@
 """
 游戏监控模块 - 集成到Streamlit应用
 实时监控游戏画面，识别出生点和高价值物品
+支持OCR识别降落地点和结算画面
 """
 
 import threading
@@ -12,6 +13,13 @@ import mss
 import numpy as np
 from PIL import Image
 import cv2
+
+# 尝试导入OCR模块
+try:
+    from game_ocr import get_ocr_engine
+    OCR_AVAILABLE = True
+except ImportError:
+    OCR_AVAILABLE = False
 
 class GameMonitor:
     """游戏监控器"""
@@ -30,11 +38,26 @@ class GameMonitor:
             "spawn_point": None,
             "items": [],
             "start_time": None,
-            "last_detection_time": None
+            "last_detection_time": None,
+            "spawn_detected_by_ocr": False  # OCR是否已识别出生点
         }
         
         # 屏幕捕获
         self.sct = mss.mss()
+        
+        # OCR引擎
+        self.ocr_engine = None
+        if OCR_AVAILABLE:
+            try:
+                self.ocr_engine = get_ocr_engine(self.data_dir)
+                print(f"✅ OCR引擎已加载: {self.ocr_engine.engine_type if self.ocr_engine.is_available() else '未初始化'}")
+            except Exception as e:
+                print(f"❌ OCR引擎加载失败: {e}")
+        
+        # 检测配置
+        self.detection_interval = 2  # 每2秒检测一次
+        self.spawn_detection_duration = 30  # 前30秒检测出生点
+        self.settlement_check_interval = 5  # 每5秒检查一次结算画面
         
         # 检测配置
         self.detection_interval = 2  # 每2秒检测一次
@@ -105,12 +128,18 @@ class GameMonitor:
                     if self.current_session["active"]:
                         elapsed_time = (datetime.now() - self.current_session["start_time"]).total_seconds()
                         
-                        # 前30秒检测出生点
-                        if elapsed_time < self.spawn_detection_duration and not self.current_session["spawn_point"]:
-                            self._detect_spawn_point(screenshot)
+                        # 前30秒用OCR检测出生点文字
+                        if (elapsed_time < self.spawn_detection_duration and 
+                            not self.current_session["spawn_detected_by_ocr"] and
+                            self.ocr_engine and self.ocr_engine.is_available()):
+                            self._detect_spawn_point_ocr(screenshot)
                         
-                        # 持续检测高价值物品
+                        # 持续检测高价值物品（颜色检测）
                         self._detect_valuable_items(screenshot)
+                        
+                        # 定期检查结算画面
+                        if elapsed_time > 60 and elapsed_time % self.settlement_check_interval == 0:
+                            self._check_settlement_screen(screenshot)
                 
                 time.sleep(self.detection_interval)
                 
@@ -159,15 +188,92 @@ class GameMonitor:
             "spawn_point": None,
             "items": [],
             "start_time": datetime.now(),
-            "last_detection_time": datetime.now()
+            "last_detection_time": datetime.now(),
+            "spawn_detected_by_ocr": False
         }
         print(f"[新会话] 游戏开始于 {self.current_session['start_time']}")
     
-    def _detect_spawn_point(self, screenshot):
-        """检测出生点"""
-        # 使用OCR识别屏幕上的文字
-        # 这里需要集成OCR引擎
-        pass
+    def _detect_spawn_point_ocr(self, screenshot):
+        """
+        使用OCR识别降落地点文字
+        游戏开始时屏幕上方会显示出生点名称
+        """
+        if not self.ocr_engine or not self.ocr_engine.is_available():
+            return
+        
+        try:
+            # 转换screenshot为PIL Image
+            img = Image.frombytes('RGB', screenshot.size, screenshot.bgra, 'raw', 'BGRX')
+            
+            # OCR识别上方中央区域
+            result = self.ocr_engine.detect_spawn_point(img, region="top_center")
+            
+            if result["success"] and result["confidence"] > 0.6:
+                spawn_text = result["text"]
+                confidence = result["confidence"]
+                
+                # 保存到会话
+                self.current_session["spawn_point"] = spawn_text
+                self.current_session["spawn_detected_by_ocr"] = True
+                
+                # 保存截图用于验证
+                screenshot_path = self.data_dir / f"spawn_detection_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                img.save(screenshot_path)
+                
+                # 记录到日志
+                self.ocr_engine.log_spawn_detection(spawn_text, confidence, screenshot_path)
+                
+                print(f"✅ [OCR识别] 出生点: {spawn_text} (置信度: {confidence:.2f})")
+                
+                # 如果识别到的文字包含已知关键词，尝试匹配地图
+                self._match_map_from_spawn(spawn_text)
+        
+        except Exception as e:
+            print(f"❌ [OCR错误] 出生点识别失败: {e}")
+    
+    def _check_settlement_screen(self, screenshot):
+        """
+        检查是否进入结算画面
+        识别撤离点、收益等信息
+        """
+        if not self.ocr_engine or not self.ocr_engine.is_available():
+            return
+        
+        try:
+            # 转换为PIL Image
+            img = Image.frombytes('RGB', screenshot.size, screenshot.bgra, 'raw', 'BGRX')
+            
+            # OCR识别结算画面
+            result = self.ocr_engine.detect_settlement_screen(img)
+            
+            if result["success"]:
+                # 检测到关键词（成功撤离或阵亡）
+                if result["survived"] is not None:
+                    print(f"✅ [OCR识别] 结算画面:")
+                    print(f"   - 状态: {'成功撤离' if result['survived'] else '阵亡'}")
+                    if result["profit"] is not None:
+                        print(f"   - 收益: {result['profit']} 哈夫币")
+                    if result["extract_point"]:
+                        print(f"   - 撤离点: {result['extract_point']}")
+                    
+                    # 自动结束会话
+                    self.end_session(
+                        survived=result["survived"],
+                        profit=result.get("profit", 0),
+                        extract_point=result.get("extract_point")
+                    )
+        
+        except Exception as e:
+            print(f"❌ [OCR错误] 结算画面识别失败: {e}")
+    
+    def _match_map_from_spawn(self, spawn_text):
+        """从出生点文字推断地图"""
+        for map_name, keywords in self.spawn_keywords.items():
+            for spawn_area, spawn_keywords in keywords.items():
+                if any(keyword in spawn_text for keyword in spawn_keywords):
+                    self.current_session["map"] = map_name
+                    print(f"  → 推断地图: {map_name}")
+                    return
     
     def _detect_valuable_items(self, screenshot):
         """检测金色/红色物品"""
