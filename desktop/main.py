@@ -21,6 +21,7 @@ from screen_capture import ScreenCapture
 from ocr_engine import OCREngine
 from data_manager import DataManager
 from game_detector import GameDetector
+from live_session_widget import LiveSessionWidget
 
 # Try to import keyboard for global hotkeys
 try:
@@ -140,6 +141,7 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.tabs, 1)
         
         self.setup_monitor_tab()
+        self.setup_live_session_tab()  # 新增：实时会话标签
         self.setup_records_tab()
         self.setup_settings_tab()
         
@@ -179,6 +181,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(right_group, 1)
         
         self.tabs.addTab(monitor_widget, "Monitor")
+    
+    def setup_live_session_tab(self):
+        """设置实时会话标签"""
+        self.live_session_widget = LiveSessionWidget(self.data_manager)
+        self.tabs.addTab(self.live_session_widget, "📊 实时会话")
     
     def setup_records_tab(self):
         records_widget = QWidget()
@@ -352,21 +359,28 @@ class MainWindow(QMainWindow):
             if result.get("map"):
                 self.current_map = result["map"]
                 self.map_label.setText(f"Map: {self.current_map}")
+                self.data_manager.update_session_map_mode(map_name=self.current_map)
                 self.log(f"Map: {self.current_map}")
             
             if result.get("mode"):
                 self.current_mode = result["mode"]
                 self.mode_label.setText(f"Mode: {self.current_mode}")
+                self.data_manager.update_session_map_mode(mode=self.current_mode)
                 self.log(f"Mode: {self.current_mode}")
             
             if result.get("items"):
                 for item in result["items"]:
+                    self.data_manager.add_item_to_session(
+                        item.get("name", "未知物品"),
+                        item.get("value", 0),
+                        item.get("category", "其他")
+                    )
                     self.add_item_to_table(item)
             
-            if result.get("profit"):
-                profit = result["profit"]
-                self.loot_label.setText(f"Profit: {profit:,}")
-                self.current_session_profit += profit
+            # 更新收益显示从会话中获取
+            session = self.data_manager.get_current_session()
+            profit = session.get("total_value", 0)
+            self.loot_label.setText(f"Profit: {profit:,}")
             
             # Auto-detect game end status
             if result.get("status"):

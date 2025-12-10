@@ -6,6 +6,11 @@ OCR识别引擎
 import re
 from PIL import Image
 import numpy as np
+import os
+import io
+import json
+import base64
+import requests
 
 # OCR引擎选择（可选）
 OCR_ENGINE = "paddleocr"  # paddleocr / easyocr / tesseract
@@ -28,6 +33,57 @@ try:
     TESSERACT_AVAILABLE = True
 except ImportError:
     TESSERACT_AVAILABLE = False
+
+# 百度 OCR 配置（将从 desktop/ocr_config.json 读取）
+BAIDU_CONFIG = None
+BAIDU_AVAILABLE = False
+
+def load_baidu_config():
+    cfg_path = os.path.join(os.path.dirname(__file__), 'ocr_config.json')
+    if not os.path.exists(cfg_path):
+        return None
+    try:
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            if data.get('api_key') and data.get('secret_key'):
+                return data
+    except Exception:
+        return None
+    return None
+
+def get_baidu_token(api_key, secret_key):
+    """获取百度 OCR 接口的 access_token"""
+    try:
+        url = (
+            f'https://aip.baidubce.com/oauth/2.0/token'
+            f'?grant_type=client_credentials&client_id={api_key}&client_secret={secret_key}'
+        )
+        resp = requests.get(url, timeout=8)
+        data = resp.json()
+        return data.get('access_token')
+    except Exception:
+        return None
+
+def baidu_ocr_image(pil_img, api_key, secret_key):
+    """使用百度通用文字识别（base64 图片）返回识别文本"""
+    token = get_baidu_token(api_key, secret_key)
+    if not token:
+        return ''
+    try:
+        buffered = io.BytesIO()
+        pil_img.convert('RGB').save(buffered, format='PNG')
+        img_b64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        url = f'https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic?access_token={token}'
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+        data = {'image': img_b64}
+        resp = requests.post(url, data=data, headers=headers, timeout=12)
+        j = resp.json()
+        words = []
+        for item in j.get('words_result', []):
+            words.append(item.get('words', ''))
+        return ' '.join(words)
+    except Exception:
+        return ''
 
 
 class OCREngine:
@@ -103,6 +159,11 @@ class OCREngine:
     
     def init_ocr(self):
         """初始化OCR引擎"""
+        # 尝试加载百度在线 OCR 配置
+        global BAIDU_CONFIG, BAIDU_AVAILABLE
+        BAIDU_CONFIG = load_baidu_config()
+        if BAIDU_CONFIG is not None:
+            BAIDU_AVAILABLE = True
         if PADDLE_AVAILABLE and OCR_ENGINE == "paddleocr":
             try:
                 self.ocr = PaddleOCR(
@@ -128,7 +189,11 @@ class OCREngine:
             print("使用 Tesseract 引擎")
             return
         
-        print("警告: 没有可用的OCR引擎，请安装 paddleocr / easyocr / pytesseract")
+        if BAIDU_AVAILABLE:
+            print("未检测到本地 OCR 引擎，已配置百度在线 OCR，将使用网络识别（请确保有网络并已填写 ocr_config.json）")
+            return
+
+        print("警告: 没有可用的OCR引擎，请安装 paddleocr / easyocr / pytesseract，或在 desktop/ocr_config.json 中配置百度 API Key")
     
     def recognize(self, image):
         """
@@ -159,17 +224,14 @@ class OCREngine:
         # OCR识别
         raw_text = self.extract_text(img_array)
         
-        if not raw_text:
-            return None
-        
-        # 解析结果
+        # 即使 raw_text 为空也返回结构化结果
         result = {
-            "map": self.detect_map(raw_text),
-            "mode": self.detect_mode(raw_text),
-            "items": self.detect_items(raw_text),
-            "profit": self.detect_profit(raw_text),
-            "status": self.detect_status(raw_text),
-            "raw_text": raw_text
+            "map": self.detect_map(raw_text) if raw_text else None,
+            "mode": self.detect_mode(raw_text) if raw_text else None,
+            "items": self.detect_items(raw_text) if raw_text else [],
+            "profit": self.detect_profit(raw_text) if raw_text else 0,
+            "status": self.detect_status(raw_text) if raw_text else None,
+            "raw_text": raw_text or "(OCR 引擎不可用或未识别到文字)"
         }
         
         return result
@@ -177,25 +239,76 @@ class OCREngine:
     def extract_text(self, image):
         """提取图像中的文字"""
         try:
-            if PADDLE_AVAILABLE and isinstance(self.ocr, PaddleOCR):
-                result = self.ocr.ocr(image, cls=True)
-                if result and result[0]:
-                    texts = [line[1][0] for line in result[0]]
-                    return " ".join(texts)
-            
-            elif EASYOCR_AVAILABLE and hasattr(self.ocr, 'readtext'):
-                result = self.ocr.readtext(image)
-                texts = [item[1] for item in result]
-                return " ".join(texts)
-            
-            elif TESSERACT_AVAILABLE:
-                if isinstance(image, np.ndarray):
-                    image = Image.fromarray(image)
-                text = pytesseract.image_to_string(image, lang='chi_sim+eng')
-                return text
-            
-            return ""
-            
+            texts = []
+
+            # Helper to run OCR on a PIL image and return text
+            def ocr_on_pil(pil_img):
+                try:
+                    if PADDLE_AVAILABLE and isinstance(self.ocr, PaddleOCR):
+                        res = self.ocr.ocr(np.array(pil_img), cls=True)
+                        if res and res[0]:
+                            return " ".join([line[1][0] for line in res[0]])
+
+                    if EASYOCR_AVAILABLE and hasattr(self.ocr, 'readtext'):
+                        res = self.ocr.readtext(np.array(pil_img))
+                        return " ".join([item[1] for item in res])
+
+                    if TESSERACT_AVAILABLE:
+                        return pytesseract.image_to_string(pil_img, lang='chi_sim+eng')
+
+                except Exception as e:
+                    print(f"区域 OCR 错误: {e}")
+                return ""
+
+            # Ensure PIL image
+            if isinstance(image, np.ndarray):
+                pil = Image.fromarray(image)
+            else:
+                pil = image.copy()
+
+            w, h = pil.size
+
+            # Define probable regions (relative) to improve detection
+            regions = [
+                # Top banner where total profit usually appears
+                (int(0.02*w), int(0.02*h), int(0.96*w), int(0.18*h)),
+                # Left column (weapons / items list)
+                (int(0.02*w), int(0.18*h), int(0.36*w), int(0.7*h)),
+                # Center-right area (loot icons and labels)
+                (int(0.36*w), int(0.2*h), int(0.9*w), int(0.7*h)),
+                # Bottom pocket area
+                (int(0.02*w), int(0.78*h), int(0.96*w), int(0.95*h)),
+            ]
+
+            # Run OCR on each region (with preprocessing) and collect texts
+            for (left, top, right, bottom) in regions:
+                try:
+                    crop = pil.crop((left, top, right, bottom))
+                    proc = ImagePreprocessor.preprocess(crop)
+                    region_text = ocr_on_pil(proc)
+                    if region_text:
+                        texts.append(region_text)
+                except Exception as e:
+                    print(f"裁剪区域失败: {e}")
+
+            # 如果没有本地 OCR 结果且配置了百度 OCR，则调用百度在线 OCR
+            if not texts and BAIDU_AVAILABLE and BAIDU_CONFIG is not None:
+                try:
+                    baidu_text = baidu_ocr_image(pil, BAIDU_CONFIG.get('api_key'), BAIDU_CONFIG.get('secret_key'))
+                    if baidu_text:
+                        texts.append(baidu_text)
+                except Exception as e:
+                    print(f"百度 OCR 调用失败: {e}")
+
+            # Fallback: run OCR on whole image if nothing found
+            if not texts:
+                whole = ImagePreprocessor.preprocess(pil)
+                whole_text = ocr_on_pil(whole)
+                if whole_text:
+                    texts.append(whole_text)
+
+            return " ".join(texts)
+
         except Exception as e:
             print(f"OCR识别错误: {e}")
             return ""

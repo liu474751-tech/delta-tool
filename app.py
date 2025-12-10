@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 import json
 import random
 import numpy as np
+from pathlib import Path
+import os
 
 # 1. 页面配置 (必须在第一行)
 st.set_page_config(
@@ -66,37 +68,171 @@ MAPS_DATA = {
     "大坝": {
         "description": "大坝地图，经典搜打撤地图，多层建筑结构",
         "size": "中型",
-        "loot_zones": ["发电站", "控制室", "水闸", "仓库区", "办公楼", "地下通道"],
-        "hot_zones": ["控制室", "仓库区"],
-        "extract_points": ["大坝顶部", "河岸", "公路"],
+        "player_count": "12人",
+        "difficulty": "中等",
+        "loot_zones": ["会议区域", "平号", "钢铁塔", "狼牙", "雷达站", "金融地块", "海军中心"],
+        "spawn_points": {
+            "优势方": [
+                {"name": "军营/栏杆", "desc": "离主楼最近，TO出生点", "strategy": "快速冲主楼，抢占先机", "risk": "中等"},
+                {"name": "维修通道", "desc": "带电通过河或进道", "strategy": "绕后偷袭，避开正面", "risk": "较高"},
+                {"name": "变电站外围", "desc": "通常先吃变电站再去楼", "strategy": "稳健发育后进攻", "risk": "较低"}
+            ],
+            "劣势方": [
+                {"name": "济舍中心正门", "desc": "全图最远，需长途奔袭", "strategy": "快速移动，避免被截", "risk": "高"},
+                {"name": "水泥厂/后山", "desc": "建议直接吃完水泥厂，架起前往中心的人", "strategy": "先搜刮再伏击", "risk": "中等"},
+                {"name": "河滩/野地", "desc": "老六位，适合半路截杀", "strategy": "埋伏打游击", "risk": "高"}
+            ]
+        },
+        "hot_zones": [
+            {"name": "会议区域", "value": "高", "items": ["钥匙卡", "高级装备"], "danger": "极高"},
+            {"name": "金融地块", "value": "极高", "items": ["现金", "情报文件"], "danger": "极高"},
+            {"name": "海军中心", "value": "高", "items": ["军用物资", "医疗包"], "danger": "高"}
+        ],
+        "extract_points": [
+            {"name": "E1北部撤离点", "location": "地图北侧", "distance": "近", "risk": "中等"},
+            {"name": "E2东部撤离点", "location": "地图东侧", "distance": "中", "risk": "较低"},
+            {"name": "E3南部撤离点", "location": "地图南侧", "distance": "远", "risk": "较高"},
+            {"name": "E4西部撤离点", "location": "地图西侧", "distance": "中", "risk": "中等"}
+        ],
+        "tactical_routes": [
+            {"name": "速攻路线", "path": "军营→会议区域→金融地块→E1撤离", "time": "8-12分钟", "profit": "高"},
+            {"name": "稳健路线", "path": "变电站→雷达站→平号→E2撤离", "time": "12-15分钟", "profit": "中等"},
+            {"name": "绕后路线", "path": "水泥厂→河滩→海军中心→E4撤离", "time": "10-14分钟", "profit": "中高"}
+        ],
+        "tips": [
+            "💡 会议区域和金融地块是必争之地，建议组队行动",
+            "⚠️ 主楼周围视野开阔，容易被狙击手盯上",
+            "🎯 变电站装备丰富且相对安全，适合前期发育",
+            "🚁 撤离前检查周围，避免被蹲守"
+        ]
     },
     "长弓": {
         "description": "森林地图，地形复杂，适合中远距离作战",
         "size": "大型",
+        "player_count": "14人",
+        "difficulty": "中等",
         "loot_zones": ["林中小屋", "瞭望塔", "营地", "溪流", "伐木场", "猎人小屋"],
-        "hot_zones": ["营地", "伐木场"],
-        "extract_points": ["森林边缘", "小路", "河流"],
+        "spawn_points": {
+            "随机出生": [
+                {"name": "林中小屋", "desc": "森林边缘", "strategy": "快速搜刮撤离", "risk": "低"},
+                {"name": "瞭望塔", "desc": "制高点", "strategy": "观察后决策", "risk": "中等"},
+                {"name": "营地", "desc": "中心区域", "strategy": "抢占资源", "risk": "高"}
+            ]
+        },
+        "hot_zones": [
+            {"name": "营地", "value": "极高", "items": ["军用补给箱"], "danger": "极高"},
+            {"name": "伐木场", "value": "高", "items": ["工具箱", "弹药"], "danger": "高"}
+        ],
+        "extract_points": [
+            {"name": "森林边缘", "location": "地图边界", "distance": "远", "risk": "低"},
+            {"name": "小路", "location": "森林小径", "distance": "中", "risk": "中等"},
+            {"name": "河流", "location": "河流渡口", "distance": "近", "risk": "较高"}
+        ],
+        "tactical_routes": [
+            {"name": "外围搜刮", "path": "边缘小屋→猎人小屋→森林边缘撤离", "time": "10-12分钟", "profit": "中等"},
+            {"name": "中心争夺", "path": "营地→伐木场→河流撤离", "time": "8-10分钟", "profit": "高"}
+        ],
+        "tips": [
+            "💡 森林视线受阻，注意使用声音定位",
+            "⚠️ 营地是必争之地，准备好战斗",
+            "🎯 瞭望塔可以观察大半个地图"
+        ]
     },
     "巴克什": {
         "description": "沙漠地图，开阔地形，远距离狙击为主",
         "size": "大型",
+        "player_count": "16人",
+        "difficulty": "困难",
         "loot_zones": ["清真寺", "集市", "军营", "油田", "废墟", "堡垒"],
-        "hot_zones": ["军营", "堡垒"],
-        "extract_points": ["沙漠边缘", "直升机", "车队"],
+        "spawn_points": {
+            "随机出生": [
+                {"name": "清真寺", "desc": "城镇中心", "strategy": "快速进入建筑", "risk": "中等"},
+                {"name": "油田", "desc": "资源点", "strategy": "搜刮工业物资", "risk": "高"},
+                {"name": "废墟", "desc": "边缘地带", "strategy": "隐蔽发育", "risk": "低"}
+            ]
+        },
+        "hot_zones": [
+            {"name": "军营", "value": "极高", "items": ["军用装备", "弹药箱"], "danger": "极高"},
+            {"name": "堡垒", "value": "高", "items": ["高级防具", "武器配件"], "danger": "高"}
+        ],
+        "extract_points": [
+            {"name": "沙漠边缘", "location": "地图外围", "distance": "远", "risk": "低"},
+            {"name": "直升机", "location": "停机坪", "distance": "中", "risk": "高"},
+            {"name": "车队", "location": "公路", "distance": "近", "risk": "中等"}
+        ],
+        "tactical_routes": [
+            {"name": "狙击路线", "path": "废墟制高点→远程狙击→沙漠边缘", "time": "12-15分钟", "profit": "中等"},
+            {"name": "冲锋路线", "path": "清真寺→军营→堡垒→直升机", "time": "8-12分钟", "profit": "极高"}
+        ],
+        "tips": [
+            "💡 开阔地形，移动时注意寻找掩体",
+            "⚠️ 狙击手天堂，携带远程武器",
+            "🎯 军营和堡垒必有激战"
+        ]
     },
     "航天": {
         "description": "航天中心地图，科技感十足，多层建筑",
         "size": "大型",
+        "player_count": "14人",
+        "difficulty": "困难",
         "loot_zones": ["发射台", "控制中心", "研究所", "仓储区", "停机坪", "地下设施"],
-        "hot_zones": ["控制中心", "研究所"],
-        "extract_points": ["直升机", "紧急通道", "停车场"],
+        "spawn_points": {
+            "随机出生": [
+                {"name": "发射台", "desc": "开阔区域", "strategy": "快速转移", "risk": "高"},
+                {"name": "仓储区", "desc": "物资丰富", "strategy": "搜刮发育", "risk": "中等"},
+                {"name": "地下设施", "desc": "复杂地形", "strategy": "CQB作战", "risk": "高"}
+            ]
+        },
+        "hot_zones": [
+            {"name": "控制中心", "value": "极高", "items": ["情报文件", "钥匙卡"], "danger": "极高"},
+            {"name": "研究所", "value": "极高", "items": ["实验装备", "医疗用品"], "danger": "高"}
+        ],
+        "extract_points": [
+            {"name": "直升机", "location": "停机坪", "distance": "中", "risk": "高"},
+            {"name": "紧急通道", "location": "地下出口", "distance": "近", "risk": "中等"},
+            {"name": "停车场", "location": "地面出口", "distance": "远", "risk": "低"}
+        ],
+        "tactical_routes": [
+            {"name": "科技路线", "path": "研究所→控制中心→直升机", "time": "10-14分钟", "profit": "极高"},
+            {"name": "地下路线", "path": "地下设施→仓储区→紧急通道", "time": "8-12分钟", "profit": "中高"}
+        ],
+        "tips": [
+            "💡 多层建筑，注意垂直方向的敌人",
+            "⚠️ 控制中心必有激战，做好准备",
+            "🎯 地下设施适合近战武器"
+        ]
     },
     "监狱": {
         "description": "监狱地图，CQB为主，近距离交战频繁",
         "size": "中型",
+        "player_count": "12人",
+        "difficulty": "困难",
         "loot_zones": ["牢房区", "食堂", "操场", "医务室", "监控室", "地下通道"],
-        "hot_zones": ["监控室", "医务室"],
-        "extract_points": ["正门", "后门", "下水道"],
+        "spawn_points": {
+            "随机出生": [
+                {"name": "牢房区", "desc": "狭窄空间", "strategy": "CQB战斗", "risk": "极高"},
+                {"name": "操场", "desc": "开阔区域", "strategy": "快速移动", "risk": "高"},
+                {"name": "地下通道", "desc": "隐蔽路线", "strategy": "绕后偷袭", "risk": "中等"}
+            ]
+        },
+        "hot_zones": [
+            {"name": "监控室", "value": "极高", "items": ["电子设备", "钥匙卡"], "danger": "极高"},
+            {"name": "医务室", "value": "高", "items": ["医疗用品", "药品"], "danger": "高"}
+        ],
+        "extract_points": [
+            {"name": "正门", "location": "主入口", "distance": "近", "risk": "极高"},
+            {"name": "后门", "location": "后方出口", "distance": "中", "risk": "中等"},
+            {"name": "下水道", "location": "地下出口", "distance": "远", "risk": "低"}
+        ],
+        "tactical_routes": [
+            {"name": "速战速决", "path": "监控室→医务室→后门", "time": "6-10分钟", "profit": "高"},
+            {"name": "地下潜行", "path": "地下通道→牢房区→下水道", "time": "8-12分钟", "profit": "中等"}
+        ],
+        "tips": [
+            "💡 近距离战斗为主，携带霰弹枪或冲锋枪",
+            "⚠️ 监控室是必争之地，准备闪光弹",
+            "🎯 地下通道可以避开大部分战斗"
+        ]
     },
 }
 
@@ -364,17 +500,122 @@ RANK_DATA = {
     "三角洲巅峰": {"分数范围": "6000+", "奖励": "限定皮肤+专属头像框"},
 }
 
+# ==================== 实时数据读取功能 ====================
+
+def load_live_session():
+    """加载实时会话数据"""
+    data_dir = Path.home() / "Documents" / "DeltaTool"
+    live_session_file = data_dir / "live_session.json"
+    
+    if live_session_file.exists():
+        try:
+            with open(live_session_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return None
+    return None
+
+def load_all_game_records():
+    """加载所有游戏记录（包括JSON和CSV）"""
+    data_dir = Path.home() / "Documents" / "DeltaTool"
+    records = []
+    
+    # 方式1：尝试读取JSON文件
+    json_file = data_dir / "game_records.json"
+    if json_file.exists():
+        try:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                json_records = json.load(f)
+                print(f"[DEBUG] 从JSON加载了 {len(json_records)} 条记录")
+                records.extend(json_records)
+        except Exception as e:
+            print(f"[DEBUG] 读取JSON失败: {e}")
+    
+    # 方式2：尝试读取所有CSV文件
+    csv_files = list(data_dir.glob("*.csv"))
+    print(f"[DEBUG] 找到 {len(csv_files)} 个CSV文件: {[f.name for f in csv_files]}")
+    for csv_file in csv_files:
+        try:
+            df = pd.read_csv(csv_file, encoding='utf-8-sig')
+            print(f"[DEBUG] 从 {csv_file.name} 加载了 {len(df)} 条记录")
+            if len(df) > 0:
+                # 转换CSV为记录格式
+                for _, row in df.iterrows():
+                    # 处理survived字段（可能是布尔值或字符串）
+                    survived_val = row.get('survived', True)
+                    if isinstance(survived_val, str):
+                        survived = survived_val.lower() in ['true', '1', 'yes', '✅']
+                    else:
+                        survived = bool(survived_val)
+                    
+                    record = {
+                        "datetime": row.get('datetime', ''),
+                        "map": row.get('map', '未知'),
+                        "mode": row.get('mode', '未知'),
+                        "zone": row.get('zone', ''),
+                        "items": row.get('items', ''),
+                        "profit": int(row.get('profit', 0)) if pd.notna(row.get('profit')) else 0,
+                        "survived": survived
+                    }
+                    # 避免重复（简单检查datetime）
+                    if not any(r.get('datetime') == record['datetime'] for r in records):
+                        records.append(record)
+        except Exception as e:
+            print(f"[DEBUG] 读取 {csv_file.name} 失败: {e}")
+    
+    print(f"[DEBUG] 总共加载 {len(records)} 条记录")
+    
+    if records:
+        return pd.DataFrame(records)
+    return None
+
+# 初始化session_state
+if 'game_records' not in st.session_state:
+    st.session_state.game_records = []
+    # 尝试从文件加载历史数据
+    df = load_all_game_records()
+    print(f"[DEBUG] load_all_game_records 返回: {df is not None}, 长度: {len(df) if df is not None else 0}")
+    if df is not None and len(df) > 0:
+        print(f"[DEBUG] DataFrame 列: {list(df.columns)}")
+        print(f"[DEBUG] DataFrame 内容:\n{df}")
+        for idx, row in df.iterrows():
+            record = {
+                "日期": str(row.get('datetime', '')),
+                "地图": str(row.get('map', '未知')),
+                "模式": str(row.get('mode', '未知')),
+                "刷新点": str(row.get('zone', '')),
+                "物资": str(row.get('items', '')),
+                "价值": int(row.get('profit', 0)) if pd.notna(row.get('profit')) else 0,
+                "撤离": "✅" if row.get('survived', True) else "❌"
+            }
+            print(f"[DEBUG] 添加记录: {record}")
+            st.session_state.game_records.append(record)
+        print(f"[DEBUG] 总共加载 {len(st.session_state.game_records)} 条记录")
+    else:
+        print("[DEBUG] 没有找到历史数据")
+
 # ==================== 侧边栏导航 ====================
 
 with st.sidebar:
     st.markdown("## 🎯 三角洲战术终端 v4.0")
     st.markdown("---")
     
+    # 显示实时会话信息
+    live_session = load_live_session()
+    if live_session and live_session.get("status") == "进行中":
+        st.success("🎮 游戏进行中")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("地图", live_session.get("map", "--"))
+        with col2:
+            st.metric("当前价值", f"¥{live_session.get('total_value', 0):,}")
+        st.markdown("---")
+    
     menu = st.radio(
         "功能菜单",
-        ["🏠 战备配置", "💰 战备计算器", "🎖️ 干员指南", "📊 地图出货统计", 
-         "🎰 爆率模拟器", "🎒 装备推荐", "📈 数据管理", "📋 游戏记录",
-         "📉 深度分析", "🤖 智能推荐", "💻 桌面客户端"],
+        ["🏠 战备配置", "💰 战备计算器", "🎖️ 干员指南", "🗺️ 战术地图", 
+         "📊 物资分析", "🎒 装备推荐", "📈 数据管理", "📋 游戏记录",
+         "📉 深度分析", "🤖 智能推荐", "💻 实时监控"],
         index=0
     )
     
@@ -385,11 +626,16 @@ with st.sidebar:
     
     st.markdown("---")
     st.markdown("### 🎮 快捷统计")
-    if 'total_games' not in st.session_state:
-        st.session_state.total_games = 0
-        st.session_state.total_profit = 0
-    st.metric("总局数", st.session_state.total_games)
-    st.metric("累计收益", f"{st.session_state.total_profit:,}")
+    
+    # 从session中计算统计
+    if 'game_records' in st.session_state and st.session_state.game_records:
+        total_games = len(st.session_state.game_records)
+        total_profit = sum(r.get('价值', 0) for r in st.session_state.game_records if r.get('撤离') == "✅")
+        st.metric("总局数", total_games)
+        st.metric("累计收益", f"{int(total_profit):,}")
+    else:
+        st.metric("总局数", 0)
+        st.metric("累计收益", "¥0")
 
 # ==================== 功能模块 ====================
 
@@ -467,8 +713,10 @@ if menu == "🏠 战备配置":
         st.markdown(f"**难度:** {mode_detail['difficulty']}")
         st.markdown(f"**玩家数:** {mode_detail['player_count']}")
     with col3:
-        st.markdown(f"**热点区域:** {', '.join(map_info['hot_zones'])}")
-        st.markdown(f"**撤离点:** {', '.join(map_info['extract_points'])}")
+        hot_zones_names = [z['name'] if isinstance(z, dict) else str(z) for z in map_info['hot_zones']]
+        extract_names = [e['name'] if isinstance(e, dict) else str(e) for e in map_info['extract_points']]
+        st.markdown(f"**热点区域:** {', '.join(hot_zones_names)}")
+        st.markdown(f"**撤离点:** {', '.join(extract_names)}")
 
 elif menu == "💰 战备计算器":
     st.title("💰 战备价值计算器")
@@ -724,14 +972,97 @@ elif menu == "🎖️ 干员指南":
                 st.markdown(f"**阵容:** {' + '.join(preset['阵容'])}")
                 st.markdown(f"**战术:** {preset['战术']}")
 
-elif menu == "🎰 爆率模拟器":
-    st.title("🎰 出货概率模拟器")
-    st.caption("模拟跑刀出货概率 - 看看你的运气如何！")
+elif menu == "📊 物资分析":
+    st.title("📊 物资出货分析与概率模拟")
+    st.caption("分析物资出货概率 | 模拟跑刀收益 | 多地图对比")
     
-    tab1, tab2 = st.tabs(["🎲 单次模拟", "📊 批量统计"])
+    # 主功能标签页
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 出货概率分析", "🎲 单次模拟", "📊 批量统计", "🗺️ 地图对比"])
     
+    # ========== 出货概率分析 ==========
     with tab1:
-        st.subheader("单次跑刀模拟")
+        st.subheader("📈 地图物资出货概率")
+        
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            selected_map = st.selectbox("选择地图", MAP_LIST, key="loot_map")
+            available_modes = MAP_MODES[selected_map]
+            selected_mode = st.selectbox("选择模式", available_modes, key="loot_mode")
+            
+            # 地图信息卡片
+            map_info = MAPS_DATA[selected_map]
+            mode_info = MODE_INFO[selected_mode]
+            st.markdown(f"""
+            ### 🗺️ {selected_map} ({selected_mode})
+            - **描述:** {map_info['description']}
+            - **大小:** {map_info['size']}
+            - **难度:** {mode_info['difficulty']}
+            - **玩家数:** {map_info['player_count']}
+            """)
+            
+            st.markdown("---")
+            st.markdown("### 📍 物资刷新点")
+            hot_zones_data = map_info['hot_zones']
+            for zone_data in hot_zones_data:
+                if isinstance(zone_data, dict):
+                    zone_name = zone_data['name']
+                    zone_value = zone_data.get('value', '未知')
+                    st.markdown(f"- 🔥 **{zone_name}** (价值: {zone_value})")
+                else:
+                    st.markdown(f"- {zone_data}")
+        
+        with col2:
+            # 出货概率图表
+            loot_data = get_loot_probability(selected_map, selected_mode)
+            df = pd.DataFrame({
+                "物资类型": list(loot_data.keys()),
+                "出货概率(%)": [round(v, 1) for v in loot_data.values()]
+            })
+            
+            # 柱状图
+            fig = px.bar(
+                df, 
+                x="物资类型", 
+                y="出货概率(%)",
+                color="出货概率(%)",
+                color_continuous_scale="YlOrRd",
+                title=f"{selected_map} ({selected_mode}) - 物资出货概率"
+            )
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white',
+                height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # 雷达图
+            fig_radar = go.Figure()
+            fig_radar.add_trace(go.Scatterpolar(
+                r=[round(v, 1) for v in loot_data.values()],
+                theta=list(loot_data.keys()),
+                fill='toself',
+                name=f"{selected_map}",
+                line_color='#FFD700'
+            ))
+            fig_radar.update_layout(
+                polar=dict(
+                    radialaxis=dict(visible=True, range=[0, 100]),
+                    bgcolor='rgba(0,0,0,0)'
+                ),
+                showlegend=False,
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white',
+                title="物资分布雷达图",
+                height=400
+            )
+            st.plotly_chart(fig_radar, use_container_width=True)
+    
+    # ========== 单次模拟 ==========
+    with tab2:
+        st.subheader("🎲 单次跑刀模拟")
+        st.markdown("模拟一次游戏的物资搜刮情况")
         
         col_sim1, col_sim2 = st.columns(2)
         with col_sim1:
@@ -740,23 +1071,27 @@ elif menu == "🎰 爆率模拟器":
             sim_modes = MAP_MODES[sim_map]
             sim_mode = st.selectbox("选择模式", sim_modes, key="sim_mode")
         
-        map_info = MAPS_DATA[sim_map]
+        map_info_sim = MAPS_DATA[sim_map]
+        loot_zones_list = map_info_sim['loot_zones']
         
         col1, col2 = st.columns(2)
-        
         with col1:
-            sim_zone = st.selectbox("选择搜索区域", map_info['loot_zones'])
-            is_hot_zone = sim_zone in map_info['hot_zones']
+            sim_zone = st.selectbox("选择搜索区域", loot_zones_list)
+        with col2:
+            # 判断是否为热点
+            hot_zones_list = [z['name'] if isinstance(z, dict) else z for z in map_info_sim['hot_zones']]
+            is_hot_zone = sim_zone in hot_zones_list
             if is_hot_zone:
-                st.warning("🔥 这是热点区域！出货率+50%，但风险也更高！")
+                st.warning("🔥 热点区域！出货率+50%")
+            else:
+                st.info("📍 普通区域")
         
-        if st.button("🎲 开始搜索！", type="primary"):
+        if st.button("🎲 开始搜索！", type="primary", use_container_width=True):
             loot_probs = get_loot_probability(sim_map, sim_mode)
-            
-            # 热点区域加成
             modifier = 1.5 if is_hot_zone else 1.0
             
             results = []
+            st.markdown("---")
             st.markdown("### 📦 搜索结果:")
             
             for item, base_prob in loot_probs.items():
@@ -765,7 +1100,6 @@ elif menu == "🎰 爆率模拟器":
                 found = roll < actual_prob
                 
                 if found:
-                    # 计算物资价值
                     if "高级" in item:
                         value = random.randint(50000, 150000)
                         emoji = "🔴"
@@ -791,209 +1125,400 @@ elif menu == "🎰 爆率模拟器":
                     st.markdown(f"- {r['物资']}: **{r['价值']:,}** 哈夫币")
                 
                 st.markdown("---")
-                st.metric("💰 本次收益", f"{total_value:,} 哈夫币")
+                col_result1, col_result2 = st.columns(2)
+                with col_result1:
+                    st.metric("💰 本次收益", f"{total_value:,} 哈夫币")
+                with col_result2:
+                    st.metric("📦 获得物品", f"{len(results)} 件")
                 
                 if total_value > 100000:
                     st.balloons()
-                    st.success("🎉 大丰收！运气不错！")
+                    st.success("🎉 大丰收！运气爆棚！")
                 elif total_value > 30000:
-                    st.info("👍 还不错，小有收获")
+                    st.info("👍 不错的收获")
                 else:
-                    st.warning("😅 收获一般，继续加油")
+                    st.warning("😅 收获一般")
             else:
-                st.error("😭 这趟跑空了...一无所获")
+                st.error("😭 这趟跑空了...")
     
-    with tab2:
-        st.subheader("批量模拟统计")
-        st.markdown("模拟多次跑刀，统计平均收益")
+    # ========== 批量统计 ==========
+    with tab3:
+        st.subheader("📊 批量模拟统计")
+        st.markdown("模拟多次跑刀，统计平均收益和概率分布")
         
-        col_batch1, col_batch2 = st.columns(2)
+        col_batch1, col_batch2, col_batch3 = st.columns(3)
         with col_batch1:
             sim_map2 = st.selectbox("选择地图", MAP_LIST, key="sim_map2")
         with col_batch2:
             sim_modes2 = MAP_MODES[sim_map2]
             sim_mode2 = st.selectbox("选择模式", sim_modes2, key="sim_mode2")
+        with col_batch3:
+            sim_runs = st.number_input("模拟次数", 10, 1000, 100, 10)
         
-        sim_runs = st.slider("模拟次数", 10, 1000, 100)
         survival_rate = st.slider("预估存活率 (%)", 10, 100, 60)
         
-        if st.button("🚀 开始批量模拟", type="primary"):
-            loot_probs = get_loot_probability(sim_map2, sim_mode2)
-            
-            all_runs = []
-            for run in range(sim_runs):
-                survived = random.random() * 100 < survival_rate
+        if st.button("🚀 开始批量模拟", type="primary", use_container_width=True):
+            with st.spinner("模拟中..."):
+                loot_probs = get_loot_probability(sim_map2, sim_mode2)
                 
-                if survived:
-                    run_value = 0
-                    for item, prob in loot_probs.items():
-                        if random.random() * 100 < prob:
-                            if "高级" in item:
-                                run_value += random.randint(50000, 150000)
-                            elif "中级" in item:
-                                run_value += random.randint(15000, 50000)
-                            elif "钥匙卡" in item:
-                                run_value += random.randint(80000, 200000)
-                            elif "情报文件" in item:
-                                run_value += random.randint(100000, 300000)
-                            else:
-                                run_value += random.randint(2000, 15000)
-                    all_runs.append({"局数": run+1, "收益": run_value, "状态": "存活"})
-                else:
-                    all_runs.append({"局数": run+1, "收益": 0, "状态": "阵亡"})
-            
-            df_runs = pd.DataFrame(all_runs)
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("总局数", sim_runs)
-            with col2:
-                actual_survival = len(df_runs[df_runs["状态"] == "存活"]) / sim_runs * 100
-                st.metric("实际存活率", f"{actual_survival:.1f}%")
-            with col3:
-                avg_profit = df_runs["收益"].mean()
-                st.metric("场均收益", f"{avg_profit:,.0f}")
-            with col4:
-                total_profit = df_runs["收益"].sum()
-                st.metric("总收益", f"{total_profit:,}")
-            
-            # 收益分布图
-            fig = px.histogram(
-                df_runs[df_runs["收益"] > 0],
-                x="收益",
-                nbins=30,
-                title="收益分布图"
-            )
-            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='white')
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # 趋势图
-            fig2 = px.line(
-                df_runs,
-                x="局数",
-                y="收益",
-                title="收益趋势图",
-                markers=True
-            )
-            fig2.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='white')
-            st.plotly_chart(fig2, use_container_width=True)
-
-elif menu == "📊 地图出货统计":
-    st.title("📊 地图出货概率统计")
+                all_runs = []
+                for run in range(sim_runs):
+                    survived = random.random() * 100 < survival_rate
+                    
+                    if survived:
+                        run_value = 0
+                        for item, prob in loot_probs.items():
+                            if random.random() * 100 < prob:
+                                if "高级" in item:
+                                    run_value += random.randint(50000, 150000)
+                                elif "中级" in item:
+                                    run_value += random.randint(15000, 50000)
+                                elif "钥匙卡" in item:
+                                    run_value += random.randint(80000, 200000)
+                                elif "情报文件" in item:
+                                    run_value += random.randint(100000, 300000)
+                                else:
+                                    run_value += random.randint(2000, 15000)
+                        all_runs.append({"局数": run+1, "收益": run_value, "状态": "存活"})
+                    else:
+                        all_runs.append({"局数": run+1, "收益": 0, "状态": "阵亡"})
+                
+                df_runs = pd.DataFrame(all_runs)
+                
+                # 统计卡片
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("总局数", sim_runs)
+                with col2:
+                    actual_survival = len(df_runs[df_runs["状态"] == "存活"]) / sim_runs * 100
+                    st.metric("实际存活率", f"{actual_survival:.1f}%")
+                with col3:
+                    avg_profit = df_runs["收益"].mean()
+                    st.metric("场均收益", f"{avg_profit:,.0f}")
+                with col4:
+                    total_profit = df_runs["收益"].sum()
+                    st.metric("总收益", f"{total_profit:,}")
+                
+                # 图表展示
+                col_chart1, col_chart2 = st.columns(2)
+                
+                with col_chart1:
+                    # 收益分布图
+                    fig = px.histogram(
+                        df_runs[df_runs["收益"] > 0],
+                        x="收益",
+                        nbins=30,
+                        title="收益分布直方图"
+                    )
+                    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='white')
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                with col_chart2:
+                    # 趋势图
+                    fig2 = px.line(
+                        df_runs,
+                        x="局数",
+                        y="收益",
+                        title="收益趋势图",
+                        markers=True
+                    )
+                    fig2.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='white')
+                    st.plotly_chart(fig2, use_container_width=True)
+                
+                # 详细数据表
+                with st.expander("📋 查看详细数据", expanded=False):
+                    st.dataframe(df_runs, use_container_width=True)
     
-    # 地图和模式选择
-    col1, col2 = st.columns([1, 2])
+    # ========== 地图对比 ==========
+    with tab4:
+        st.subheader("🗺️ 多地图物资出货对比")
+        st.markdown("对比不同地图的物资出货概率")
+        
+        compare_mode = st.selectbox("对比模式", ["普通", "机密", "绝密"], key="compare_mode")
+        
+        compare_items = st.multiselect(
+            "选择要对比的物资类型",
+            list(BASE_LOOT_PROBABILITY["大坝"].keys()),
+            default=["高级武器", "高级护甲", "钥匙卡"]
+        )
+        
+        if compare_items:
+            compare_data = []
+            for map_name in MAP_LIST:
+                if compare_mode in MAP_MODES[map_name]:
+                    loot = get_loot_probability(map_name, compare_mode)
+                    for item in compare_items:
+                        compare_data.append({
+                            "地图": map_name,
+                            "物资": item,
+                            "概率(%)": round(loot[item], 1)
+                        })
+            
+            if compare_data:
+                df_compare = pd.DataFrame(compare_data)
+                
+                # 分组柱状图
+                fig_compare = px.bar(
+                    df_compare,
+                    x="地图",
+                    y="概率(%)",
+                    color="物资",
+                    barmode="group",
+                    title=f"各地图物资出货概率对比 ({compare_mode}模式)"
+                )
+                fig_compare.update_layout(
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font_color='white'
+                )
+                st.plotly_chart(fig_compare, use_container_width=True)
+                
+                # 热力图
+                pivot_table = df_compare.pivot(index="物资", columns="地图", values="概率(%)")
+                fig_heatmap = px.imshow(
+                    pivot_table,
+                    labels=dict(x="地图", y="物资", color="概率(%)"),
+                    title="物资出货概率热力图",
+                    color_continuous_scale="YlOrRd"
+                )
+                fig_heatmap.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='white')
+                st.plotly_chart(fig_heatmap, use_container_width=True)
+        else:
+            st.info("👆 请选择要对比的物资类型")
+
+elif menu == "🗺️ 战术地图":
+    st.title("🗺️ 战术地图与路线规划系统")
+    st.caption("集成式地图工具 - 出生点分析 | 战术路线 | 撤离规划 | 高价值点位")
+    
+    # 地图选择
+    selected_map = st.selectbox("🎯 选择地图", MAP_LIST, key="map_tool_select")
+    map_info = MAPS_DATA[selected_map]
+    
+    # 顶部信息卡片
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("地图规模", map_info['size'])
+    with col2:
+        st.metric("玩家数量", map_info['player_count'])
+    with col3:
+        st.metric("难度等级", map_info['difficulty'])
+    with col4:
+        st.metric("出生点数", len([p for points in (map_info['spawn_points'].values() if isinstance(map_info['spawn_points'], dict) else [map_info['spawn_points']]) for p in points]))
+    
+    st.markdown("---")
+    
+    # 主内容区 - 使用标签页组织
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🎯 出生点分析", "🔥 高价值区域", "🚁 撤离点规划", "🗺️ 战术路线", "💡 实战技巧"])
+    
+    # ========== 出生点分析 ==========
+    with tab1:
+        st.subheader("🎯 出生点战术分析")
+        
+        spawn_points = map_info['spawn_points']
+        if isinstance(spawn_points, dict):
+            for category, points in spawn_points.items():
+                st.markdown(f"### {category}")
+                
+                for point in points:
+                    with st.expander(f"📍 {point['name']}", expanded=False):
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            st.markdown(f"**描述：** {point['desc']}")
+                            st.markdown(f"**推荐战术：** {point['strategy']}")
+                        with col_b:
+                            risk_color = {"低": "🟢", "较低": "🟡", "中等": "🟠", "较高": "🔴", "高": "🔴", "极高": "🔴"}
+                            st.markdown(f"**风险等级：** {risk_color.get(point['risk'], '⚪')} {point['risk']}")
+                        
+                        # 添加可视化风险条
+                        risk_value = {"低": 20, "较低": 40, "中等": 60, "较高": 80, "高": 90, "极高": 100}
+                        st.progress(risk_value.get(point['risk'], 50) / 100)
+        else:
+            for point in spawn_points:
+                with st.expander(f"📍 {point['name']}", expanded=False):
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        st.markdown(f"**描述：** {point['desc']}")
+                        st.markdown(f"**推荐战术：** {point['strategy']}")
+                    with col_b:
+                        risk_color = {"低": "🟢", "较低": "🟡", "中等": "🟠", "较高": "🔴", "高": "🔴", "极高": "🔴"}
+                        st.markdown(f"**风险等级：** {risk_color.get(point['risk'], '⚪')} {point['risk']}")
+                    
+                    # 添加可视化风险条
+                    risk_value = {"低": 20, "较低": 40, "中等": 60, "较高": 80, "高": 90, "极高": 100}
+                    st.progress(risk_value.get(point['risk'], 50) / 100)
+        
+        st.info("💡 **出生点选择建议：** 新手优先选择低风险出生点稳健发育，老手可以选择高风险高回报的中心区域")
+    
+    # ========== 高价值区域 ==========
+    with tab2:
+        st.subheader("🔥 高价值物资区域")
+        
+        for zone in map_info['hot_zones']:
+            with st.container():
+                st.markdown(f"### 🎯 {zone['name']}")
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    value_color = {"低": "🟢", "中等": "🟡", "高": "🟠", "极高": "🔴"}
+                    st.metric("价值等级", f"{value_color.get(zone['value'], '⚪')} {zone['value']}")
+                with col2:
+                    danger_color = {"低": "🟢", "中等": "🟡", "高": "🟠", "极高": "🔴"}
+                    st.metric("危险程度", f"{danger_color.get(zone['danger'], '⚪')} {zone['danger']}")
+                with col3:
+                    st.metric("物资种类", len(zone['items']))
+                
+                st.markdown("**可获得物资：**")
+                items_text = " | ".join([f"🎁 {item}" for item in zone['items']])
+                st.markdown(items_text)
+                
+                # 价值-危险比分析
+                value_score = {"低": 1, "中等": 2, "高": 3, "极高": 4}
+                danger_score = {"低": 1, "中等": 2, "高": 3, "极高": 4}
+                ratio = value_score.get(zone['value'], 2) / danger_score.get(zone['danger'], 2)
+                
+                if ratio > 1:
+                    st.success(f"✅ 性价比：高（{ratio:.2f}） - 推荐前往")
+                elif ratio > 0.7:
+                    st.warning(f"⚠️ 性价比：中等（{ratio:.2f}） - 谨慎前往")
+                else:
+                    st.error(f"❌ 性价比：低（{ratio:.2f}） - 不建议前往")
+                
+                st.markdown("---")
+        
+        st.info("💡 **搜刮建议：** 优先搜索性价比高的区域，团队作战时可以挑战高危高价值区域")
+    
+    # ========== 撤离点规划 ==========
+    with tab3:
+        st.subheader("🚁 撤离点选择与规划")
+        
+        for idx, extract in enumerate(map_info['extract_points'], 1):
+            with st.container():
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    st.markdown(f"### {idx}. {extract['name']}")
+                    st.markdown(f"**位置：** {extract['location']}")
+                
+                with col2:
+                    risk_emoji = {"低": "🟢", "较低": "🟡", "中等": "🟠", "较高": "🔴", "高": "🔴", "极高": "🔴"}
+                    st.markdown(f"### {risk_emoji.get(extract['risk'], '⚪')}")
+                
+                col_a, col_b, col_c = st.columns(3)
+                with col_a:
+                    st.metric("距离", extract['distance'])
+                with col_b:
+                    st.metric("风险", extract['risk'])
+                with col_c:
+                    # 计算推荐度
+                    distance_score = {"近": 3, "中": 2, "远": 1}
+                    risk_score = {"低": 3, "较低": 2.5, "中等": 2, "较高": 1.5, "高": 1, "极高": 0.5}
+                    recommend = distance_score.get(extract['distance'], 2) + risk_score.get(extract['risk'], 1.5)
+                    st.metric("推荐度", f"{recommend:.1f}/6.0")
+                
+                st.markdown("---")
+        
+        st.info("💡 **撤离建议：** 撤离前观察周围3分钟，确保安全再行动。如果被追杀，选择远但安全的撤离点")
+    
+    # ========== 战术路线 ==========
+    with tab4:
+        st.subheader("🗺️ 推荐战术路线")
+        
+        for idx, route in enumerate(map_info['tactical_routes'], 1):
+            with st.expander(f"📍 路线{idx}：{route['name']}", expanded=True):
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    st.markdown(f"**路线规划：**")
+                    # 将路线拆分成步骤
+                    steps = route['path'].split('→')
+                    for step_idx, step in enumerate(steps, 1):
+                        if step_idx < len(steps):
+                            st.markdown(f"{step_idx}. {step.strip()} ➜")
+                        else:
+                            st.markdown(f"{step_idx}. {step.strip()} 🏁")
+                
+                with col2:
+                    st.metric("预计时间", route['time'])
+                    
+                    profit_emoji = {"低": "💰", "中等": "💰💰", "中高": "💰💰💰", "高": "💰💰💰💰", "极高": "💰💰💰💰💰"}
+                    st.metric("预期收益", f"{profit_emoji.get(route['profit'], '💰')} {route['profit']}")
+                
+                # 路线可视化（使用进度条模拟）
+                st.markdown("**路线进度模拟：**")
+                st.progress(100)
+        
+        st.info("💡 **路线选择：** 根据你的装备和技术选择合适路线。新手推荐稳健路线，高手可以尝试速攻")
+    
+    # ========== 实战技巧 ==========
+    with tab5:
+        st.subheader("💡 实战技巧与注意事项")
+        
+        st.markdown(f"### 📋 {selected_map} 地图特色")
+        st.markdown(f"> {map_info['description']}")
+        
+        st.markdown("---")
+        st.markdown("### 🎯 核心技巧")
+        
+        for tip in map_info['tips']:
+            st.markdown(tip)
+        
+        st.markdown("---")
+        
+        # 通用技巧
+        st.markdown("### 🌟 通用战术建议")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("""
+            **前期（0-5分钟）：**
+            - 🏃 快速离开出生点
+            - 🔍 搜刮最近的建筑
+            - 👂 注意周围声音
+            - 💊 优先找护甲和医疗包
+            """)
+            
+            st.markdown("""
+            **中期（5-12分钟）：**
+            - 🎯 前往高价值区域
+            - 🤝 组队行动更安全
+            - 📦 选择性搜刮
+            - ⚡ 保持移动避免被蹲
+            """)
+        
+        with col2:
+            st.markdown("""
+            **后期（12-15分钟）：**
+            - 🚁 规划撤离路线
+            - 🎒 整理背包空间
+            - 👀 观察撤离点
+            - 🏃 果断撤离
+            """)
+            
+            st.markdown("""
+            **战斗技巧：**
+            - 🎧 声音定位敌人
+            - 🛡️ 利用掩体
+            - 🔫 爆头优先
+            - 💣 善用投掷物
+            """)
+        
+        st.success("🎖️ **记住：** 存活才能带出战利品！不要贪心，见好就收")
+    
+    # 底部操作按钮
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
     
     with col1:
-        selected_map = st.selectbox("选择地图", MAP_LIST, key="loot_map")
-        available_modes = MAP_MODES[selected_map]
-        selected_mode = st.selectbox("选择模式", available_modes, key="loot_mode")
-        
-        # 地图信息卡片
-        map_info = MAPS_DATA[selected_map]
-        mode_info = MODE_INFO[selected_mode]
-        st.markdown(f"""
-        ### 🗺️ {selected_map} ({selected_mode})
-        - **描述:** {map_info['description']}
-        - **大小:** {map_info['size']}
-        - **难度:** {mode_info['difficulty']}
-        - **玩家数:** {mode_info['player_count']}
-        """)
-        
-        st.markdown("### 📍 刷新点位")
-        for zone in map_info['loot_zones']:
-            if zone in map_info['hot_zones']:
-                st.markdown(f"- 🔥 **{zone}** (热点)")
-            else:
-                st.markdown(f"- {zone}")
+        if st.button("📊 查看该地图历史数据", use_container_width=True):
+            st.info(f"正在加载 {selected_map} 的历史数据...")
     
     with col2:
-        # 出货概率图表 (根据模式计算)
-        loot_data = get_loot_probability(selected_map, selected_mode)
-        df = pd.DataFrame({
-            "物资类型": list(loot_data.keys()),
-            "出货概率(%)": [round(v, 1) for v in loot_data.values()]
-        })
-        
-        # 柱状图
-        fig = px.bar(
-            df, 
-            x="物资类型", 
-            y="出货概率(%)",
-            color="出货概率(%)",
-            color_continuous_scale="YlOrRd",
-            title=f"{selected_map} ({selected_mode}) - 物资出货概率分布"
-        )
-        fig.update_layout(
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font_color='white',
-            height=400
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # 雷达图
-        fig_radar = go.Figure()
-        fig_radar.add_trace(go.Scatterpolar(
-            r=[round(v, 1) for v in loot_data.values()],
-            theta=list(loot_data.keys()),
-            fill='toself',
-            name=f"{selected_map} ({selected_mode})",
-            line_color='#FFD700'
-        ))
-        fig_radar.update_layout(
-            polar=dict(
-                radialaxis=dict(visible=True, range=[0, 100]),
-                bgcolor='rgba(0,0,0,0)'
-            ),
-            showlegend=False,
-            paper_bgcolor='rgba(0,0,0,0)',
-            font_color='white',
-            title="物资分布雷达图",
-            height=400
-        )
-        st.plotly_chart(fig_radar, use_container_width=True)
+        if st.button("🎮 开始新游戏会话", type="primary", use_container_width=True):
+            st.success("游戏会话已开始！前往'实时会话'页面记录")
     
-    # 所有地图对比
-    st.markdown("---")
-    st.subheader("📈 各地图出货对比")
-    
-    compare_items = st.multiselect(
-        "选择要对比的物资类型",
-        list(BASE_LOOT_PROBABILITY["大坝"].keys()),
-        default=["高级武器", "高级护甲", "钥匙卡"]
-    )
-    
-    compare_mode = st.selectbox("对比模式", ["普通", "机密", "绝密"], key="compare_mode")
-    
-    if compare_items:
-        compare_data = []
-        for map_name in MAP_LIST:
-            if compare_mode in MAP_MODES[map_name]:
-                loot = get_loot_probability(map_name, compare_mode)
-                for item in compare_items:
-                    compare_data.append({
-                        "地图": map_name,
-                        "物资": item,
-                        "概率(%)": round(loot[item], 1)
-                    })
-        
-        if compare_data:
-            df_compare = pd.DataFrame(compare_data)
-            fig_compare = px.bar(
-                df_compare,
-                x="地图",
-                y="概率(%)",
-                color="物资",
-                barmode="group",
-                title=f"各地图物资出货概率对比 ({compare_mode}模式)"
-            )
-            fig_compare.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font_color='white'
-        )
-        st.plotly_chart(fig_compare, use_container_width=True)
+    with col3:
+        if st.button("🔗 打开官方地图", use_container_width=True):
+            st.markdown('[🌐 点击打开官方地图工具](https://df.qq.com/cp/a20240729directory/)', unsafe_allow_html=True)
 
 elif menu == "🎒 装备推荐":
     st.title("🎒 最佳战备推荐")
@@ -1080,17 +1605,60 @@ elif menu == "📈 数据管理":
     
     with tab1:
         st.markdown("### 上传出货记录")
-        st.markdown("支持 CSV 格式，包含列: 地图, 物资, 数量, 日期")
+        st.markdown("支持 CSV 格式，包含列: datetime, map, mode, zone, items, profit, survived")
         
         uploaded_file = st.file_uploader("选择 CSV 文件", type=['csv'])
         if uploaded_file:
-            df = pd.read_csv(uploaded_file)
-            st.dataframe(df)
-            st.success("✅ 数据导入成功！")
-            
-            if st.button("保存到本地"):
-                st.session_state.imported_data = df
-                st.success("数据已保存！")
+            try:
+                df = pd.read_csv(uploaded_file, encoding='utf-8-sig')
+                st.dataframe(df, use_container_width=True)
+                
+                # 转换数据格式到 game_records
+                if 'game_records' not in st.session_state:
+                    st.session_state.game_records = []
+                
+                # 将上传的数据转换为标准格式
+                for _, row in df.iterrows():
+                    record = {
+                        "日期": row.get('datetime', datetime.now().strftime("%Y-%m-%d %H:%M")),
+                        "地图": row.get('map', '未知'),
+                        "模式": row.get('mode', '未知'),
+                        "刷新点": row.get('zone', ''),
+                        "物资": row.get('items', ''),
+                        "价值": int(row.get('profit', 0)) if pd.notna(row.get('profit')) else 0,
+                        "撤离": "✅" if row.get('survived', True) else "❌"
+                    }
+                    st.session_state.game_records.append(record)
+                
+                # 更新统计
+                if 'total_games' not in st.session_state:
+                    st.session_state.total_games = 0
+                    st.session_state.total_profit = 0
+                
+                st.session_state.total_games = len(st.session_state.game_records)
+                st.session_state.total_profit = sum(
+                    r['价值'] for r in st.session_state.game_records 
+                    if r['撤离'] == "✅"
+                )
+                
+                st.success(f"✅ 成功导入 {len(df)} 条记录！")
+                st.balloons()
+                
+                # 同时保存到文档目录
+                try:
+                    save_dir = Path.home() / "Documents" / "DeltaTool"
+                    save_dir.mkdir(parents=True, exist_ok=True)
+                    import time
+                    ts = time.strftime("%Y%m%d_%H%M%S")
+                    save_path = save_dir / f"uploaded_game_records_{ts}.csv"
+                    df.to_csv(save_path, index=False, encoding='utf-8-sig')
+                    st.info(f"📁 已备份到: {save_path}")
+                except Exception as e:
+                    st.warning(f"备份失败: {e}")
+                    
+            except Exception as e:
+                st.error(f"❌ 导入失败: {e}")
+                st.info("请确保CSV文件格式正确，包含以下列：datetime, map, mode, zone, items, profit, survived")
     
     with tab2:
         st.markdown("### 手动录入出货记录")
@@ -1100,7 +1668,26 @@ elif menu == "📈 数据管理":
             record_map = st.selectbox("地图", MAP_LIST, key="record_map")
             record_modes = MAP_MODES[record_map]
             record_mode = st.selectbox("模式", record_modes, key="record_mode")
-            record_zone = st.selectbox("刷新点", MAPS_DATA[record_map]["loot_zones"])
+            
+            # 处理出生点显示（支持分组和列表两种格式）
+            spawn_points = MAPS_DATA[record_map]["spawn_points"]
+            if isinstance(spawn_points, dict):
+                # 分组显示（新格式：字典包含详细信息）
+                all_spawns = []
+                for category, points in spawn_points.items():
+                    # 检查points是列表还是字典列表
+                    if points and isinstance(points[0], dict):
+                        all_spawns.extend([f"{category}: {p['name']}" for p in points])
+                    else:
+                        all_spawns.extend([f"{category}: {p}" for p in points])
+                record_zone = st.selectbox("出生点", all_spawns)
+            else:
+                # 简单列表显示（检查是否为字典格式）
+                if spawn_points and isinstance(spawn_points[0], dict):
+                    spawn_names = [p['name'] for p in spawn_points]
+                    record_zone = st.selectbox("出生点", spawn_names)
+                else:
+                    record_zone = st.selectbox("出生点", spawn_points)
         
         with col2:
             record_item = st.text_input("获得物资")
@@ -1156,8 +1743,23 @@ elif menu == "📈 数据管理":
 elif menu == "📋 游戏记录":
     st.title("📋 游戏记录与统计")
     
+    # 检查是否有数据
     if 'game_records' in st.session_state and st.session_state.game_records:
-        df = pd.DataFrame(st.session_state.game_records)
+        df_list = []
+        for record in st.session_state.game_records:
+            df_list.append({
+                "日期": record.get("日期", ""),
+                "地图": record.get("地图", ""),
+                "模式": record.get("模式", ""),
+                "刷新点": record.get("刷新点", ""),
+                "物资": record.get("物资", ""),
+                "价值": record.get("价值", 0),
+                "撤离": record.get("撤离", "")
+            })
+        
+        df = pd.DataFrame(df_list)
+        
+        st.success(f"✅ 共有 {len(df)} 条记录")
         
         # 统计概览
         col1, col2, col3, col4 = st.columns(4)
@@ -1188,9 +1790,33 @@ elif menu == "📋 游戏记录":
         # 详细记录
         st.markdown("### 📋 详细记录")
         st.dataframe(df, use_container_width=True, hide_index=True)
+        
+        # 导出功能
+        st.markdown("---")
+        csv = df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
+        st.download_button(
+            "📥 导出为CSV",
+            csv,
+            "game_records.csv",
+            "text/csv",
+            key='download-csv'
+        )
     else:
         st.info("📝 暂无游戏记录")
-        st.markdown("请前往 **数据管理** 页面添加记录")
+        st.markdown("""
+        **如何添加记录？**
+        
+        **方式一：使用桌面客户端（推荐）**
+        1. 启动桌面客户端 (desktop/main.py)
+        2. 自动识别游戏并记录数据
+        3. 数据会自动显示在这里
+        
+        **方式二：手动录入**
+        - 前往 **📈 数据管理** 页面手动添加记录
+        
+        **方式三：上传CSV文件**
+        - 前往 **📈 数据管理** 页面上传CSV文件
+        """)
 
 # ==================== 深度分析模块 ====================
 elif menu == "📉 深度分析":
@@ -1198,7 +1824,7 @@ elif menu == "📉 深度分析":
     
     # 检查是否有数据
     if 'game_records' not in st.session_state or not st.session_state.game_records:
-        st.warning("⚠️ 暂无游戏记录，请先在「数据管理」中添加记录")
+        st.warning("⚠️ 暂无游戏记录，请先在「数据管理」中添加记录或使用桌面客户端")
         
         # 生成示例数据按钮
         st.markdown("---")
@@ -1233,7 +1859,7 @@ elif menu == "📉 深度分析":
             st.rerun()
     else:
         df = pd.DataFrame(st.session_state.game_records)
-        df["日期时间"] = pd.to_datetime(df["日期"])
+        df["日期时间"] = pd.to_datetime(df["日期"], format='mixed', errors='coerce')
         df["日期_only"] = df["日期时间"].dt.date
         
         # 顶部统计卡片
@@ -1796,180 +2422,105 @@ elif menu == "🤖 智能推荐":
                 </div>
                 """, unsafe_allow_html=True)
 
-# ==================== 桌面客户端下载 ====================
-elif menu == "💻 桌面客户端":
-    st.title("💻 桌面客户端下载")
-    st.caption("屏幕捕获 + OCR识别 + 自动记录")
+# ==================== 实时游戏监控 ====================
+elif menu == "💻 实时监控":
+    st.title("💻 实时游戏监控系统")
+    st.caption("自动识别出生点和高价值物品 | 实时记录战局数据")
     
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, #1f4068 0%, #16213e 100%); 
-                padding: 2rem; border-radius: 15px; margin: 1rem 0;">
-        <h2 style="color: #FFD700; text-align: center; margin-bottom: 1rem;">
-            🖥️ Delta Tool 桌面版 v1.1
-        </h2>
-        <p style="color: #ccc; text-align: center; font-size: 1.1rem;">
-            实时屏幕捕获 · OCR自动识别 · 游戏数据同步
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    # 导入监控模块
+    try:
+        from game_monitor import get_monitor
+        monitor = get_monitor()
+        monitor_available = True
+    except Exception as e:
+        monitor_available = False
+        st.error(f"⚠️ 监控模块加载失败: {e}")
     
-    col1, col2 = st.columns(2)
+    if not monitor_available:
+        st.warning("游戏监控功能暂不可用，请安装依赖库")
+        st.code("pip install opencv-python mss numpy", language="bash")
+        monitor_available = False
     
-    with col1:
-        st.markdown("### ✨ 功能特性")
-        st.markdown("""
-        - 🖥️ **实时屏幕捕获** - 自动检测游戏窗口
-        - 🔍 **OCR智能识别** - 识别地图、模式、物品
-        - ⌨️ **全局快捷键** - F9截图 / F10监控 / F11识别
-        - 📊 **自动记录** - 撤离/阵亡自动保存
-        - 🔔 **系统托盘** - 最小化后台运行
-        - 💾 **数据导出** - CSV格式导出
-        """)
+    if monitor_available:
+        # 控制面板
+        st.markdown("### 🎮 监控控制台")
         
-        st.markdown("### 📋 系统要求")
-        st.markdown("""
-        - Windows 10/11 64位
-        - Python 3.10+
-        - 4GB+ 内存
-        - 管理员权限（热键功能）
-        """)
-    
-    with col2:
-        st.markdown("### ⌨️ 快捷键")
-        hotkey_data = {
-            "快捷键": ["F9", "F10", "F11", "Ctrl+S"],
-            "功能": ["手动截图", "开始/停止监控", "识别当前画面", "快速保存记录"]
-        }
-        st.table(hotkey_data)
+        col1, col2, col3, col4 = st.columns(4)
         
-        st.markdown("### 🔧 OCR引擎选择")
-        st.markdown("""
-        | 引擎 | 优点 | 缺点 |
-        |------|------|------|
-        | **PaddleOCR** | 中文识别最佳 | 安装较大 |
-        | **EasyOCR** | 安装简单 | 速度较慢 |
-        | **Tesseract** | 轻量级 | 需额外安装 |
-        """)
-    
-    st.markdown("---")
-    st.markdown("### 📥 下载安装")
-    
-    # GitHub下载链接
-    github_url = "https://github.com/liu474751-tech/delta-tool"
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown(f"""
-        <a href="{github_url}/archive/refs/heads/main.zip" target="_blank">
-            <div style="background: linear-gradient(135deg, #28a745 0%, #218838 100%); 
-                        padding: 1.5rem; border-radius: 10px; text-align: center; cursor: pointer;">
-                <h3 style="color: white; margin: 0;">📦 下载ZIP包</h3>
-                <p style="color: #ccc; margin: 0.5rem 0 0 0;">一键下载完整代码</p>
-            </div>
-        </a>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-        <a href="{github_url}" target="_blank">
-            <div style="background: linear-gradient(135deg, #333 0%, #24292e 100%); 
-                        padding: 1.5rem; border-radius: 10px; text-align: center; cursor: pointer;">
-                <h3 style="color: white; margin: 0;">🐙 GitHub仓库</h3>
-                <p style="color: #ccc; margin: 0.5rem 0 0 0;">查看源代码</p>
-            </div>
-        </a>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
-        <a href="{github_url}/tree/main/desktop" target="_blank">
-            <div style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); 
-                        padding: 1.5rem; border-radius: 10px; text-align: center; cursor: pointer;">
-                <h3 style="color: white; margin: 0;">📁 桌面端目录</h3>
-                <p style="color: #ccc; margin: 0.5rem 0 0 0;">仅查看桌面客户端</p>
-            </div>
-        </a>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    st.markdown("### 🚀 快速安装步骤")
-    
-    with st.expander("方式一：一键安装（推荐）", expanded=True):
-        st.markdown("""
-        1. 下载并解压ZIP包
-        2. 进入 `desktop` 文件夹
-        3. 双击运行 `install.bat`
-        4. 按提示选择OCR引擎
-        5. 安装完成后双击 `run.bat` 启动
-        """)
-        st.code("""
-# install.bat 会自动执行以下操作：
-# 1. 创建Python虚拟环境
-# 2. 安装所有依赖包
-# 3. 安装选择的OCR引擎
-        """, language="bash")
-    
-    with st.expander("方式二：手动安装"):
-        st.markdown("""
-        1. 确保已安装 Python 3.10+
-        2. 下载代码并进入 desktop 目录
-        3. 执行以下命令：
-        """)
-        st.code("""
-# 创建虚拟环境
-python -m venv venv
-venv\\Scripts\\activate
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 安装OCR引擎（选择其一）
-pip install paddlepaddle paddleocr  # 推荐
-# 或
-pip install easyocr
-
-# 启动程序
-python main.py
-        """, language="bash")
-    
-    with st.expander("方式三：Git克隆"):
-        st.code(f"""
-git clone {github_url}.git
-cd delta-tool/desktop
-pip install -r requirements.txt
-pip install easyocr
-python main.py
-        """, language="bash")
-    
-    st.markdown("---")
-    st.markdown("### ❓ 常见问题")
-    
-    with st.expander("Q: 热键不工作？"):
-        st.markdown("""
-        **A:** 全局热键需要管理员权限。请右键点击 `run.bat`，选择"以管理员身份运行"。
-        """)
-    
-    with st.expander("Q: OCR识别不准确？"):
-        st.markdown("""
-        **A:** 
-        1. 推荐使用 PaddleOCR，中文识别效果最好
-        2. 确保游戏画质设置为高
-        3. 分辨率建议 1920x1080 或更高
-        """)
-    
-    with st.expander("Q: 程序无法启动？"):
-        st.markdown("""
-        **A:** 
-        1. 确认Python版本 >= 3.10
-        2. 尝试重新运行 `install.bat`
-        3. 检查是否有杀毒软件拦截
-        """)
-    
-    with st.expander("Q: 如何更新？"):
-        st.markdown("""
-        **A:** 重新下载ZIP包并解压覆盖，数据文件在用户文档目录不会丢失。
-        """)
+        with col1:
+            if st.button("▶️ 启动监控", type="primary", use_container_width=True):
+                result = monitor.start_monitoring()
+                if result["status"] == "success":
+                    st.success(result["message"])
+                else:
+                    st.error(result["message"])
+        
+        with col2:
+            if st.button("⏸️ 停止监控", use_container_width=True):
+                result = monitor.stop_monitoring()
+                st.info(result["message"])
+        
+        with col3:
+            if st.button("✅ 成功撤离", use_container_width=True):
+                profit = st.session_state.get('temp_profit', 0)
+                result = monitor.end_session(survived=True, profit=profit)
+                if result["status"] == "success":
+                    st.success("会话已结束！数据已保存")
+        
+        with col4:
+            if st.button("❌ 阵亡退出", use_container_width=True):
+                result = monitor.end_session(survived=False, profit=0)
+                if result["status"] == "success":
+                    st.warning("会话已结束")
+        
+        # 监控状态
+        current_session = monitor.get_current_session()
+        is_monitoring = monitor.is_running
+        
+        st.markdown("---")
+        if is_monitoring:
+            st.success("🟢 **监控状态：运行中**")
+        else:
+            st.error("🔴 **监控状态：已停止**")
+        
+        # 当前会话
+        if current_session["active"]:
+            st.markdown("## 🎮 当前游戏会话")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("🎯 出生点", current_session.get("spawn_point") or "检测中...")
+            with col2:
+                st.metric("🗺️ 地图", current_session.get("map") or "检测中...")
+            with col3:
+                st.metric("📦 检测到物品", len(current_session.get("items", [])))
+            with col4:
+                if current_session.get("start_time"):
+                    duration = (datetime.now() - current_session["start_time"]).total_seconds() / 60
+                    st.metric("⏱️ 游戏时长", f"{int(duration)} 分钟")
+            
+            st.markdown("---")
+            st.markdown("### 🔍 检测到的高价值物品")
+            
+            items = current_session.get("items", [])
+            if items:
+                df_items = []
+                for idx, item in enumerate(items, 1):
+                    df_items.append({
+                        "序号": idx,
+                        "类型": item["type"],
+                        "时间": item["time"].split('T')[1][:8] if 'T' in item["time"] else item["time"],
+                        "像素数": item["pixel_count"],
+                    })
+                st.dataframe(pd.DataFrame(df_items), use_container_width=True)
+            else:
+                st.info("📌 暂未检测到高价值物品")
+            
+            st.markdown("---")
+            profit_input = st.number_input("撤离后的总收益（哈夫币）", value=0, step=10000)
+            st.session_state.temp_profit = profit_input
+        else:
+            st.info("📌 当前没有活跃的游戏会话，点击'启动监控'开始")
 
 # ==================== 页脚 ====================
 st.markdown("---")

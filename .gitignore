@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Data files (keep local only)
+*.db
+*.sqlite
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+streamlit_log.txt
+
+# Temporary files
+*.tmp
+temp/
+tmp/
+
+# Personal data files (optional, uncomment if needed)
+# game_records.json
+# game_records_export.csv
+# live_session.json

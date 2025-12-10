@@ -24,6 +24,8 @@ class DataManager:
         self.records_file = self.data_dir / "game_records.json"
         self.stats_file = self.data_dir / "stats.json"
         self.settings_file = self.data_dir / "settings.json"
+        self.live_session_file = self.data_dir / "live_session.json"  # 实时会话数据
+        self.csv_export_file = self.data_dir / "game_records_export.csv"  # CSV导出供streamlit读取
         
         self.records = []
         self.stats = {
@@ -33,7 +35,22 @@ class DataManager:
             "last_update": None
         }
         
+        # 当前会话数据
+        self.current_session = {
+            "spawn_point": None,  # 出生地
+            "map": None,
+            "mode": None,
+            "items_collected": [],  # 收集的物品列表
+            "total_value": 0,  # 实时总价值
+            "start_time": None,
+            "status": "准备中"  # 准备中/进行中/已撤离/已阵亡
+        }
+        
         self.load_data()
+        
+        # 初始化时导出CSV（如果有记录的话）
+        if self.records:
+            self.export_to_csv()
     
     def load_data(self):
         """加载数据"""
@@ -52,6 +69,9 @@ class DataManager:
                     self.stats = json.load(f)
             except:
                 pass
+        
+        # 加载实时会话
+        self.load_live_session()
     
     def save_data(self):
         """保存数据"""
@@ -91,7 +111,114 @@ class DataManager:
             self.stats["total_profit"] += record.get("profit", 0)
         
         self.save_data()
+        self.export_to_csv()  # 自动导出CSV供streamlit使用
         return True
+    
+    def start_new_session(self, map_name=None, mode=None, spawn_point=None):
+        """开始新会话"""
+        self.current_session = {
+            "spawn_point": spawn_point,
+            "map": map_name,
+            "mode": mode,
+            "items_collected": [],
+            "total_value": 0,
+            "start_time": datetime.now().isoformat(),
+            "status": "进行中"
+        }
+        self.save_live_session()
+        return self.current_session
+    
+    def update_session_spawn(self, spawn_point):
+        """更新出生地"""
+        self.current_session["spawn_point"] = spawn_point
+        self.save_live_session()
+    
+    def update_session_map_mode(self, map_name=None, mode=None):
+        """更新地图和模式"""
+        if map_name:
+            self.current_session["map"] = map_name
+        if mode:
+            self.current_session["mode"] = mode
+        self.save_live_session()
+    
+    def add_item_to_session(self, item_name, item_value, category="其他"):
+        """添加物品到当前会话"""
+        item = {
+            "name": item_name,
+            "value": item_value,
+            "category": category,
+            "time": datetime.now().isoformat()
+        }
+        self.current_session["items_collected"].append(item)
+        self.current_session["total_value"] = sum(
+            item["value"] for item in self.current_session["items_collected"]
+        )
+        self.save_live_session()
+        return self.current_session["total_value"]
+    
+    def end_session(self, survived=True, final_value=None):
+        """结束当前会话并保存记录"""
+        if final_value is None:
+            final_value = self.current_session["total_value"]
+        
+        self.current_session["status"] = "已撤离" if survived else "已阵亡"
+        self.save_live_session()
+        
+        # 创建完整记录
+        record = {
+            "datetime": self.current_session.get("start_time", datetime.now().isoformat()),
+            "map": self.current_session.get("map", "未知"),
+            "mode": self.current_session.get("mode", "未知"),
+            "zone": self.current_session.get("spawn_point", "未知"),
+            "items": self.current_session["items_collected"],
+            "profit": final_value,
+            "survived": survived
+        }
+        
+        return self.add_record(record)
+    
+    def get_current_session(self):
+        """获取当前会话数据"""
+        return self.current_session.copy()
+    
+    def save_live_session(self):
+        """保存实时会话数据"""
+        try:
+            with open(self.live_session_file, 'w', encoding='utf-8') as f:
+                json.dump(self.current_session, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"保存实时会话失败: {e}")
+    
+    def load_live_session(self):
+        """加载实时会话数据"""
+        if self.live_session_file.exists():
+            try:
+                with open(self.live_session_file, 'r', encoding='utf-8') as f:
+                    self.current_session = json.load(f)
+            except:
+                pass
+    
+    def export_to_csv(self):
+        """导出记录到CSV供Streamlit读取"""
+        try:
+            if not self.records:
+                return
+            
+            with open(self.csv_export_file, 'w', encoding='utf-8-sig', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=[
+                    'datetime', 'map', 'mode', 'zone', 'items', 'profit', 'survived'
+                ])
+                writer.writeheader()
+                
+                for record in self.records:
+                    row = record.copy()
+                    # 将items列表转换为字符串
+                    if isinstance(row.get('items'), list):
+                        items_str = '; '.join([item.get('name', str(item)) for item in row['items']])
+                        row['items'] = items_str
+                    writer.writerow(row)
+        except Exception as e:
+            print(f"导出CSV失败: {e}")
     
     def get_records(self, filters=None):
         """
