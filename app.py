@@ -569,60 +569,90 @@ def load_all_game_records():
         return pd.DataFrame(records)
     return None
 
+# 检测是否为云端环境
+import os
+IS_CLOUD = os.getenv("STREAMLIT_SHARING_MODE") is not None or \
+           os.getenv("STREAMLIT_RUNTIME_ENV") == "cloud" or \
+           os.getenv("HOSTNAME", "").startswith("streamlit-")
+
 # 初始化session_state
 if 'game_records' not in st.session_state:
     st.session_state.game_records = []
-    # 尝试从文件加载历史数据
-    try:
-        df = load_all_game_records()
-        print(f"[DEBUG] load_all_game_records 返回: {df is not None}, 长度: {len(df) if df is not None else 0}")
-        if df is not None and len(df) > 0:
-            print(f"[DEBUG] DataFrame 列: {list(df.columns)}")
-            print(f"[DEBUG] DataFrame 内容:\n{df}")
-            for idx, row in df.iterrows():
-                record = {
-                    "日期": str(row.get('datetime', '')),
-                    "地图": str(row.get('map', '未知')),
-                    "模式": str(row.get('mode', '未知')),
-                    "刷新点": str(row.get('zone', '')),
-                    "物资": str(row.get('items', '')),
-                    "价值": int(row.get('profit', 0)) if pd.notna(row.get('profit')) else 0,
-                    "撤离": "✅" if row.get('survived', True) else "❌"
-                }
-                print(f"[DEBUG] 添加记录: {record}")
-                st.session_state.game_records.append(record)
-            print(f"[DEBUG] 总共加载 {len(st.session_state.game_records)} 条记录")
-        else:
-            print("[DEBUG] 没有找到历史数据")
-    except Exception as e:
-        print(f"[DEBUG] 数据加载失败: {e}")
-        # 如果是云端环境且没有数据，使用示例数据
-        import os
-        IS_CLOUD = os.getenv("STREAMLIT_SHARING_MODE") is not None or \
-                   os.getenv("STREAMLIT_RUNTIME_ENV") == "cloud"
-        if IS_CLOUD and len(st.session_state.game_records) == 0:
-            print("[DEBUG] 云端环境，加载示例数据")
-            st.session_state.game_records = [
-                {
-                    "日期": "2025-12-09T20:47:00",
-                    "地图": "大坝",
-                    "模式": "机密",
-                    "刷新点": "优势方: 军营/栏杆",
-                    "物资": "金表;文件",
-                    "价值": 450000,
-                    "撤离": "✅"
-                },
-                {
-                    "日期": "2025-12-09T18:47:00",
-                    "地图": "大坝",
-                    "模式": "机密",
-                    "刷新点": "劣势方: 水泥厂/后山",
-                    "物资": "扳手;炸药",
-                    "价值": -173183,
-                    "撤离": "❌"
-                }
-            ]
-            print(f"[DEBUG] 示例数据已加载: {len(st.session_state.game_records)} 条")
+    
+    # 云端环境直接加载示例数据
+    if IS_CLOUD:
+        print("[DEBUG] 云端环境检测到，加载示例数据")
+        st.session_state.game_records = [
+            {
+                "日期": "2025-12-09T20:47:00",
+                "地图": "大坝",
+                "模式": "机密",
+                "刷新点": "优势方: 军营/栏杆",
+                "物资": "金表;文件",
+                "价值": 450000,
+                "撤离": "✅"
+            },
+            {
+                "日期": "2025-12-09T19:35:00",
+                "地图": "大坝",
+                "模式": "机密",
+                "刷新点": "优势方: 军营/栏杆",
+                "物资": "绷带;匕首;指南针",
+                "价值": -228190,
+                "撤离": "❌"
+            },
+            {
+                "日期": "2025-12-09T20:11:00",
+                "地图": "大坝",
+                "模式": "机密",
+                "刷新点": "劣势方: 水泥厂/后山",
+                "物资": "扳手;炸药",
+                "价值": -842501,
+                "撤离": "❌"
+            },
+            {
+                "日期": "2025-12-09T18:47:00",
+                "地图": "大坝",
+                "模式": "机密",
+                "刷新点": "优势方: 军营/栏杆",
+                "物资": "水壶",
+                "价值": -173183,
+                "撤离": "❌"
+            },
+            {
+                "日期": "2025-12-09T19:03:00",
+                "地图": "大坝",
+                "模式": "机密",
+                "刷新点": "优势方: 军营/栏杆",
+                "物资": "文件",
+                "价值": 122462,
+                "撤离": "✅"
+            }
+        ]
+        print(f"[DEBUG] 示例数据已加载: {len(st.session_state.game_records)} 条")
+    else:
+        # 本地环境尝试从文件加载历史数据
+        try:
+            df = load_all_game_records()
+            print(f"[DEBUG] load_all_game_records 返回: {df is not None}, 长度: {len(df) if df is not None else 0}")
+            if df is not None and len(df) > 0:
+                print(f"[DEBUG] DataFrame 列: {list(df.columns)}")
+                for idx, row in df.iterrows():
+                    record = {
+                        "日期": str(row.get('datetime', '')),
+                        "地图": str(row.get('map', '未知')),
+                        "模式": str(row.get('mode', '未知')),
+                        "刷新点": str(row.get('zone', '')),
+                        "物资": str(row.get('items', '')),
+                        "价值": int(row.get('profit', 0)) if pd.notna(row.get('profit')) else 0,
+                        "撤离": "✅" if row.get('survived', True) else "❌"
+                    }
+                    st.session_state.game_records.append(record)
+                print(f"[DEBUG] 总共加载 {len(st.session_state.game_records)} 条记录")
+            else:
+                print("[DEBUG] 没有找到历史数据")
+        except Exception as e:
+            print(f"[DEBUG] 数据加载失败: {e}")
 
 # ==================== 侧边栏导航 ====================
 
@@ -2458,11 +2488,11 @@ elif menu == "💻 实时监控":
     st.caption("自动识别出生点和高价值物品 | 实时记录战局数据")
     
     # 检测运行环境
-    import os
-    IS_CLOUD = os.getenv("STREAMLIT_SHARING_MODE") is not None or \
-               os.getenv("STREAMLIT_RUNTIME_ENV") == "cloud"
+    IS_CLOUD_ENV = os.getenv("STREAMLIT_SHARING_MODE") is not None or \
+                   os.getenv("STREAMLIT_RUNTIME_ENV") == "cloud" or \
+                   os.getenv("HOSTNAME", "").startswith("streamlit-")
     
-    if IS_CLOUD:
+    if IS_CLOUD_ENV:
         # 云端环境提示
         st.warning("⚠️ 游戏监控功能仅支持本地运行")
         st.info("""
