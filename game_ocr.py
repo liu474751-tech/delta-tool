@@ -11,12 +11,12 @@ from pathlib import Path
 from datetime import datetime
 
 try:
-    import easyocr
+    import easyocr  # type: ignore
     OCR_AVAILABLE = True
     OCR_ENGINE = "easyocr"
 except ImportError:
     try:
-        from paddleocr import PaddleOCR
+        from paddleocr import PaddleOCR  # type: ignore
         OCR_AVAILABLE = True
         OCR_ENGINE = "paddleocr"
     except ImportError:

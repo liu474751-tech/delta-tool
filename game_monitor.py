@@ -42,8 +42,16 @@ class GameMonitor:
             "spawn_detected_by_ocr": False  # OCR是否已识别出生点
         }
         
-        # 屏幕捕获
-        self.sct = mss.mss()
+        # 屏幕捕获（延迟初始化，避免环境问题）
+        self.sct = None
+        self.screen_capture_available = False
+        
+        try:
+            self.sct = mss.mss()
+            self.screen_capture_available = True
+        except Exception as e:
+            print(f"⚠️ 屏幕捕获初始化失败: {e}")
+            print("   游戏监控功能将不可用")
         
         # OCR引擎
         self.ocr_engine = None
@@ -96,6 +104,9 @@ class GameMonitor:
     
     def start_monitoring(self):
         """开始监控"""
+        if not self.screen_capture_available:
+            return {"status": "error", "message": "屏幕捕获不可用，无法启动监控"}
+        
         if self.is_running:
             return {"status": "error", "message": "监控已在运行中"}
         
@@ -149,6 +160,9 @@ class GameMonitor:
     
     def _capture_screen(self):
         """捕获屏幕"""
+        if not self.screen_capture_available or self.sct is None:
+            return None
+        
         try:
             # 捕获主屏幕
             monitor = self.sct.monitors[1]

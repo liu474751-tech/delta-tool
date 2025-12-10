@@ -10,7 +10,7 @@ from pathlib import Path
 # 添加desktop目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'desktop'))
 
-from data_manager import DataManager
+from data_manager import DataManager  # type: ignore
 
 
 def main():
