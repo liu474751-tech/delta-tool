@@ -4,22 +4,24 @@
 支持OCR识别降落地点和结算画面
 """
 
-import threading
+import mss
+import cv2
+import numpy as np
 import time
+import os
+import threading
 from datetime import datetime
 from pathlib import Path
+import pandas as pd
 import json
-import mss
-import numpy as np
-from PIL import Image
-import cv2
 
-# 尝试导入OCR模块
+# 尝试导入OCR
 try:
-    from game_ocr import get_ocr_engine
+    import easyocr
     OCR_AVAILABLE = True
 except ImportError:
     OCR_AVAILABLE = False
+
 
 class GameMonitor:
     """游戏监控器"""
@@ -27,6 +29,11 @@ class GameMonitor:
     def __init__(self, data_dir):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 截图和事件保存目录
+        self.save_dir = self.data_dir / 'game_records'
+        self.save_dir.mkdir(exist_ok=True)
+        self.data_file = self.data_dir / 'game_events.csv'
         
         self.is_running = False
         self.monitor_thread = None
@@ -39,74 +46,33 @@ class GameMonitor:
             "items": [],
             "start_time": None,
             "last_detection_time": None,
-            "spawn_detected_by_ocr": False  # OCR是否已识别出生点
+            "spawn_detected": False  # 是否已检测出生点
         }
         
-        # 屏幕捕获可用性检查（每个线程需要独立的mss实例）
-        self.screen_capture_available = False
+        # OCR引擎
+        self.reader = None
+        if OCR_AVAILABLE:
+            try:
+                print("正在初始化 AI 视觉引擎...")
+                self.reader = easyocr.Reader(['ch_sim', 'en'])
+                print("✅ OCR引擎初始化成功")
+            except Exception as e:
+                print(f"⚠️ OCR引擎初始化失败: {e}")
         
+        # 屏幕捕获可用性
+        self.screen_capture_available = False
         try:
-            # 测试屏幕捕获是否可用
             with mss.mss() as test_sct:
                 _ = test_sct.monitors
             self.screen_capture_available = True
+            print("✅ 屏幕捕获系统就绪")
         except Exception as e:
             print(f"⚠️ 屏幕捕获不可用: {e}")
-            print("   游戏监控功能将不可用")
-        
-        # OCR引擎
-        self.ocr_engine = None
-        if OCR_AVAILABLE:
-            try:
-                self.ocr_engine = get_ocr_engine(self.data_dir)
-                print(f"✅ OCR引擎已加载: {self.ocr_engine.engine_type if self.ocr_engine.is_available() else '未初始化'}")
-            except Exception as e:
-                print(f"❌ OCR引擎加载失败: {e}")
-        
-        # 检测配置
-        self.detection_interval = 2  # 每2秒检测一次
-        self.spawn_detection_duration = 30  # 前30秒检测出生点
-        self.settlement_check_interval = 5  # 每5秒检查一次结算画面
-        
-        # 检测配置
-        self.detection_interval = 2  # 每2秒检测一次
-        self.spawn_detection_duration = 30  # 前30秒检测出生点
-        
-        # 物品颜色范围（HSV）
-        self.golden_color_range = {
-            "lower": np.array([20, 100, 100]),  # 金色下限
-            "upper": np.array([30, 255, 255])   # 金色上限
-        }
-        self.red_color_range = {
-            "lower": np.array([0, 100, 100]),   # 红色下限
-            "upper": np.array([10, 255, 255])   # 红色上限
-        }
-        
-        # 地图关键词匹配
-        self.map_keywords = {
-            "大坝": ["大坝", "Dam", "会议", "金融", "海军"],
-            "长弓": ["长弓", "Longbow", "森林", "营地"],
-            "巴克什": ["巴克什", "Bazaar", "集市", "清真寺"],
-            "航天": ["航天", "Space", "发射台", "控制中心"],
-            "监狱": ["监狱", "Prison", "牢房", "监控室"]
-        }
-        
-        # 出生点关键词
-        self.spawn_keywords = {
-            "大坝": {
-                "军营": ["军营", "栏杆", "TO"],
-                "维修通道": ["维修", "通道"],
-                "变电站": ["变电站", "变电"],
-                "济舍": ["济舍", "中心", "正门"],
-                "水泥厂": ["水泥厂", "后山"],
-                "河滩": ["河滩", "野地"]
-            }
-        }
     
     def start_monitoring(self):
-        """开始监控"""
+        """启动监控"""
         if not self.screen_capture_available:
-            return {"status": "error", "message": "屏幕捕获不可用，无法启动监控"}
+            return {"status": "error", "message": "屏幕捕获功能不可用"}
         
         if self.is_running:
             return {"status": "error", "message": "监控已在运行中"}
@@ -125,11 +91,18 @@ class GameMonitor:
         
         return {"status": "success", "message": "游戏监控已停止"}
     
+    def get_status(self):
+        """获取监控状态"""
+        return {
+            "is_running": self.is_running,
+            "current_session": self.current_session
+        }
+    
     def _monitor_loop(self):
         """监控主循环"""
         print("✅ 游戏监控已启动")
         
-        # 在监控线程内创建mss实例（避免线程安全问题）
+        # 在监控线程内创建mss实例（线程安全）
         sct = None
         try:
             sct = mss.mss()
@@ -144,31 +117,15 @@ class GameMonitor:
                     screenshot = self._capture_screen(sct)
                     
                     if screenshot is not None:
-                        # 检测游戏状态
-                        self._detect_game_state(screenshot)
-                        
-                        # 如果在游戏中，检测物品
-                        if self.current_session["active"]:
-                            elapsed_time = (datetime.now() - self.current_session["start_time"]).total_seconds()
-                            
-                            # 前30秒用OCR检测出生点文字
-                            if (elapsed_time < self.spawn_detection_duration and 
-                                not self.current_session["spawn_detected_by_ocr"] and
-                                self.ocr_engine and self.ocr_engine.is_available()):
-                                self._detect_spawn_point_ocr(screenshot)
-                            
-                            # 持续检测高价值物品（颜色检测）
-                            self._detect_valuable_items(screenshot)
-                            
-                            # 定期检查结算画面
-                            if elapsed_time > 60 and elapsed_time % self.settlement_check_interval == 0:
-                                self._check_settlement_screen(screenshot)
+                        # 分析游戏状态
+                        self._analyze_screen(screenshot)
                     
-                    time.sleep(self.detection_interval)
+                    # 每1.5秒检测一次
+                    time.sleep(1.5)
                     
                 except Exception as e:
                     print(f"[监控错误] {e}")
-                    time.sleep(5)
+                    time.sleep(3)
         finally:
             # 确保关闭mss实例
             if sct:
@@ -176,9 +133,6 @@ class GameMonitor:
     
     def _capture_screen(self, sct):
         """捕获屏幕"""
-        if not self.screen_capture_available or sct is None:
-            return None
-        
         try:
             # 捕获主屏幕
             monitor = sct.monitors[1]
@@ -186,6 +140,7 @@ class GameMonitor:
             
             # 转换为numpy数组
             img = np.array(screenshot)
+            # MSS截图是BGRA，转换为BGR
             img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
             
             return img
@@ -193,252 +148,167 @@ class GameMonitor:
             print(f"[截图错误] {e}")
             return None
     
-    def _detect_game_state(self, screenshot):
-        """检测游戏状态（是否在游戏中）"""
-        # 简化版：检测屏幕特定区域是否有游戏UI元素
-        # 这里可以用OCR或图像识别
+    def _analyze_screen(self, img):
+        """分析屏幕内容"""
+        if not self.reader:
+            return
         
-        # 如果检测到游戏开始
-        if not self.current_session["active"]:
-            # 检测是否有小地图、血条等UI元素
-            if self._has_game_ui(screenshot):
-                self._start_new_session()
+        try:
+            # OCR识别屏幕文字
+            result = self.reader.readtext(img, detail=0)
+            text_content = " ".join(result)
+            
+            # 检测淘汰画面
+            if "致命一击" in text_content and "来自" in text_content:
+                self._handle_death_screen(text_content, img)
+                time.sleep(10)  # 死亡后暂停监控
+                return
+            
+            # 检测结算画面
+            if "行动结束" in text_content or "撤离成功" in text_content or "失败撤离" in text_content:
+                self._handle_settlement_screen(text_content, img)
+                time.sleep(30)  # 结算后暂停监控
+                return
+            
+            # 检测游戏开始（前30秒检测出生点）
+            if not self.current_session["active"]:
+                # 检测是否进入游戏
+                map_places = ["行政区", "游客中心", "水泥厂", "长弓溪谷", "零号大坝"]
+                for place in map_places:
+                    if place in text_content:
+                        self._start_session(place)
+                        break
+            
+            # 如果在游戏中且未检测出生点
+            if (self.current_session["active"] and 
+                not self.current_session["spawn_detected"] and
+                self.current_session["start_time"]):
+                elapsed = (datetime.now() - self.current_session["start_time"]).total_seconds()
+                if elapsed < 30:  # 前30秒检测出生点
+                    self._detect_spawn_point(text_content)
+                    
+        except Exception as e:
+            print(f"[分析错误] {e}")
     
-    def _has_game_ui(self, screenshot):
-        """检测是否有游戏UI（简化版）"""
-        # 这里可以实现更复杂的检测逻辑
-        # 目前返回True作为示例
-        return False  # 需要实际实现
-    
-    def _start_new_session(self):
+    def _start_session(self, map_name):
         """开始新会话"""
         self.current_session = {
             "active": True,
-            "map": None,
+            "map": map_name,
             "spawn_point": None,
             "items": [],
             "start_time": datetime.now(),
             "last_detection_time": datetime.now(),
-            "spawn_detected_by_ocr": False
+            "spawn_detected": False
         }
-        print(f"[新会话] 游戏开始于 {self.current_session['start_time']}")
+        print(f"🎮 检测到进入游戏: {map_name}")
     
-    def _detect_spawn_point_ocr(self, screenshot):
-        """
-        使用OCR识别降落地点文字
-        游戏开始时屏幕上方会显示出生点名称
-        """
-        if not self.ocr_engine or not self.ocr_engine.is_available():
-            return
-        
-        try:
-            # 转换screenshot为PIL Image
-            img = Image.frombytes('RGB', screenshot.size, screenshot.bgra, 'raw', 'BGRX')
-            
-            # OCR识别上方中央区域
-            result = self.ocr_engine.detect_spawn_point(img, region="top_center")
-            
-            if result["success"] and result["confidence"] > 0.6:
-                spawn_text = result["text"]
-                confidence = result["confidence"]
-                
-                # 保存到会话
-                self.current_session["spawn_point"] = spawn_text
-                self.current_session["spawn_detected_by_ocr"] = True
-                
-                # 保存截图用于验证
-                screenshot_path = self.data_dir / f"spawn_detection_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-                img.save(screenshot_path)
-                
-                # 记录到日志
-                self.ocr_engine.log_spawn_detection(spawn_text, confidence, screenshot_path)
-                
-                print(f"✅ [OCR识别] 出生点: {spawn_text} (置信度: {confidence:.2f})")
-                
-                # 如果识别到的文字包含已知关键词，尝试匹配地图
-                self._match_map_from_spawn(spawn_text)
-        
-        except Exception as e:
-            print(f"❌ [OCR错误] 出生点识别失败: {e}")
+    def _detect_spawn_point(self, text_content):
+        """检测出生点"""
+        spawn_keywords = ["优势方", "劣势方", "军营", "栏杆", "水泥厂", "后山"]
+        for keyword in spawn_keywords:
+            if keyword in text_content:
+                self.current_session["spawn_point"] = keyword
+                self.current_session["spawn_detected"] = True
+                print(f"📍 识别出生点: {keyword}")
+                break
     
-    def _check_settlement_screen(self, screenshot):
-        """
-        检查是否进入结算画面
-        识别撤离点、收益等信息
-        """
-        if not self.ocr_engine or not self.ocr_engine.is_available():
-            return
+    def _handle_death_screen(self, text_content, img):
+        """处理淘汰画面"""
+        # 尝试识别武器
+        weapon = "未知武器"
+        possible_weapons = ["M4A1", "AK-12", "HK416", "P90", "AWM", "突击步枪", "冲锋枪", "狙击枪"]
+        for w in possible_weapons:
+            if w in text_content:
+                weapon = w
+                break
         
-        try:
-            # 转换为PIL Image
-            img = Image.frombytes('RGB', screenshot.size, screenshot.bgra, 'raw', 'BGRX')
-            
-            # OCR识别结算画面
-            result = self.ocr_engine.detect_settlement_screen(img)
-            
-            if result["success"]:
-                # 检测到关键词（成功撤离或阵亡）
-                if result["survived"] is not None:
-                    print(f"✅ [OCR识别] 结算画面:")
-                    print(f"   - 状态: {'成功撤离' if result['survived'] else '阵亡'}")
-                    if result["profit"] is not None:
-                        print(f"   - 收益: {result['profit']} 哈夫币")
-                    if result["extract_point"]:
-                        print(f"   - 撤离点: {result['extract_point']}")
-                    
-                    # 自动结束会话
-                    self.end_session(
-                        survived=result["survived"],
-                        profit=result.get("profit", 0),
-                        extract_point=result.get("extract_point")
-                    )
+        print(f"💀 检测到淘汰画面！武器: {weapon}")
+        self._save_event("淘汰", f"被 {weapon} 击倒", img)
         
-        except Exception as e:
-            print(f"❌ [OCR错误] 结算画面识别失败: {e}")
+        # 结束当前会话
+        self.current_session["active"] = False
     
-    def _match_map_from_spawn(self, spawn_text):
-        """从出生点文字推断地图"""
-        for map_name, keywords in self.spawn_keywords.items():
-            for spawn_area, spawn_keywords in keywords.items():
-                if any(keyword in spawn_text for keyword in spawn_keywords):
-                    self.current_session["map"] = map_name
-                    print(f"  → 推断地图: {map_name}")
-                    return
+    def _handle_settlement_screen(self, text_content, img):
+        """处理结算画面"""
+        survived = "撤离成功" in text_content
+        status = "✅ 存活" if survived else "❌ 阵亡"
+        
+        print(f"🏁 检测到对局结束! 状态: {status}")
+        self._save_event("对局结束", status, img)
+        
+        # 保存对局记录到主数据文件
+        self._save_game_record(survived)
+        
+        # 结束当前会话
+        self.current_session["active"] = False
     
-    def _detect_valuable_items(self, screenshot):
-        """检测金色/红色物品"""
-        try:
-            # 转换为HSV
-            hsv = cv2.cvtColor(screenshot, cv2.COLOR_BGR2HSV)
-            
-            # 检测金色物品
-            golden_mask = cv2.inRange(hsv, self.golden_color_range["lower"], self.golden_color_range["upper"])
-            golden_pixels = cv2.countNonZero(golden_mask)
-            
-            # 检测红色物品
-            red_mask = cv2.inRange(hsv, self.red_color_range["lower"], self.red_color_range["upper"])
-            red_pixels = cv2.countNonZero(red_mask)
-            
-            # 如果检测到足够多的金色或红色像素
-            threshold = 1000  # 像素阈值
-            
-            if golden_pixels > threshold:
-                self._record_item_detection("金色物品", golden_pixels)
-            
-            if red_pixels > threshold:
-                self._record_item_detection("红色物品", red_pixels)
-                
-        except Exception as e:
-            print(f"[物品检测错误] {e}")
-    
-    def _record_item_detection(self, item_type, pixel_count):
-        """记录物品检测"""
-        now = datetime.now()
+    def _save_event(self, event_type, details, img):
+        """保存事件到CSV和截图"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        img_name = datetime.now().strftime("%Y%m%d_%H%M%S") + f"_{event_type}.png"
+        save_path = self.save_dir / img_name
         
-        # 避免重复记录（5秒内不重复）
-        if self.current_session["last_detection_time"]:
-            time_diff = (now - self.current_session["last_detection_time"]).total_seconds()
-            if time_diff < 5:
-                return
-        
-        detection = {
-            "type": item_type,
-            "time": now.isoformat(),
-            "pixel_count": pixel_count,
-            "map": self.current_session.get("map"),
-            "spawn_point": self.current_session.get("spawn_point")
-        }
-        
-        self.current_session["items"].append(detection)
-        self.current_session["last_detection_time"] = now
-        
-        # 保存到文件
-        self._save_detection(detection)
-        
-        print(f"[检测到] {item_type} - {pixel_count} 像素")
-    
-    def _save_detection(self, detection):
-        """保存检测记录"""
-        try:
-            detection_file = self.data_dir / "item_detections.json"
-            
-            # 读取现有记录
-            detections = []
-            if detection_file.exists():
-                with open(detection_file, 'r', encoding='utf-8') as f:
-                    detections = json.load(f)
-            
-            # 添加新记录
-            detections.append(detection)
-            
-            # 保存
-            with open(detection_file, 'w', encoding='utf-8') as f:
-                json.dump(detections, f, ensure_ascii=False, indent=2)
-                
-        except Exception as e:
-            print(f"[保存错误] {e}")
-    
-    def get_current_session(self):
-        """获取当前会话状态"""
-        return self.current_session.copy()
-    
-    def end_session(self, survived=True, profit=0):
-        """结束当前会话"""
-        if not self.current_session["active"]:
-            return {"status": "error", "message": "没有活跃的会话"}
-        
-        # 保存会话记录
-        session_record = {
-            "datetime": self.current_session["start_time"].isoformat(),
-            "map": self.current_session.get("map", "未知"),
-            "mode": "机密",  # 可以从检测中获取
-            "zone": self.current_session.get("spawn_point", "未知"),
-            "items": ";".join([item["type"] for item in self.current_session["items"]]),
-            "profit": profit,
-            "survived": survived,
-            "item_count": len(self.current_session["items"])
-        }
+        # 保存截图
+        cv2.imwrite(str(save_path), img)
         
         # 保存到CSV
-        self._save_session_record(session_record)
+        new_data = pd.DataFrame([[timestamp, event_type, details, img_name]], 
+                                columns=['Time', 'Type', 'Details', 'Image'])
         
-        # 重置会话
-        self.current_session["active"] = False
-        
-        return {"status": "success", "message": "会话已结束", "record": session_record}
+        hdr = not self.data_file.exists()
+        new_data.to_csv(self.data_file, mode='a', header=hdr, index=False)
+        print(f"✅ [记录] {event_type}: {details}")
     
-    def _save_session_record(self, record):
-        """保存会话记录到CSV"""
-        import pandas as pd
+    def _save_game_record(self, survived):
+        """保存对局记录"""
+        if not self.current_session.get("start_time"):
+            return
         
-        csv_file = self.data_dir / f"auto_records_{datetime.now().strftime('%Y%m%d')}.csv"
+        record = {
+            "datetime": self.current_session["start_time"].isoformat(),
+            "map": self.current_session.get("map", "未知"),
+            "mode": "机密",
+            "zone": self.current_session.get("spawn_point", ""),
+            "items": ";".join(self.current_session.get("items", [])),
+            "profit": 0,  # OCR难以准确识别收益数字
+            "survived": survived
+        }
         
+        # 保存到主记录文件
+        csv_file = self.data_dir / "game_records_export.csv"
+        df = pd.DataFrame([record])
+        
+        hdr = not csv_file.exists()
+        df.to_csv(csv_file, mode='a', header=hdr, index=False)
+        
+        print(f"✅ 对局记录已保存: {record['map']} - {'存活' if survived else '阵亡'}")
+
+
+# 主函数 - 用于独立测试
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+    
+    # 设置数据目录
+    data_dir = Path.home() / "Documents" / "DeltaTool"
+    
+    print("=== 三角洲战术独立监控模式 ===")
+    print(f"数据目录: {data_dir}")
+    
+    # 创建监控器
+    monitor = GameMonitor(str(data_dir))
+    
+    # 启动监控
+    result = monitor.start_monitoring()
+    print(result["message"])
+    
+    if result["status"] == "success":
+        print("\n按 Ctrl+C 停止监控...")
         try:
-            # 转换为DataFrame
-            df_new = pd.DataFrame([record])
-            
-            # 如果文件存在，追加；否则创建新文件
-            if csv_file.exists():
-                df_existing = pd.read_csv(csv_file, encoding='utf-8-sig')
-                df = pd.concat([df_existing, df_new], ignore_index=True)
-            else:
-                df = df_new
-            
-            # 保存
-            df.to_csv(csv_file, index=False, encoding='utf-8-sig')
-            print(f"[已保存] 会话记录到 {csv_file}")
-            
-        except Exception as e:
-            print(f"[保存会话错误] {e}")
-
-
-# 全局监控器实例
-_monitor_instance = None
-
-def get_monitor():
-    """获取监控器实例（单例）"""
-    global _monitor_instance
-    if _monitor_instance is None:
-        data_dir = Path.home() / "Documents" / "DeltaTool"
-        _monitor_instance = GameMonitor(data_dir)
-    return _monitor_instance
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\n正在停止监控...")
+            monitor.stop_monitoring()
+            print("已停止")
