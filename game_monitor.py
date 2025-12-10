@@ -140,6 +140,26 @@ class GameMonitor:
             "current_session": self.current_session
         }
     
+    def get_current_session(self):
+        """获取当前会话信息"""
+        return self.current_session.copy()
+    
+    def end_session(self, survived=False, profit=0):
+        """手动结束会话"""
+        if not self.current_session.get("active"):
+            return {"status": "error", "message": "当前没有活跃的游戏会话"}
+        
+        # 更新收益
+        self.current_session["currency"] = profit
+        
+        # 保存记录
+        self._save_game_record(survived)
+        
+        # 结束会话
+        self.current_session["active"] = False
+        
+        return {"status": "success", "message": "会话已结束并保存"}
+    
     def _monitor_loop(self):
         """监控主循环"""
         print("✅ 游戏监控已启动")
