@@ -675,7 +675,7 @@ with st.sidebar:
         "功能菜单",
         ["🏠 战备配置", "💰 战备计算器", "🎖️ 干员指南", "🗺️ 战术地图", 
          "📊 物资分析", "🎒 装备推荐", "📈 数据管理", "📋 游戏记录",
-         "📉 深度分析", "🤖 智能推荐", "💻 实时监控"],
+         "📉 深度分析", "🤖 智能推荐", "💻 实时监控", "🔥 死亡热力图"],
         index=0
     )
     
@@ -2737,6 +2737,153 @@ streamlit run app.py
         
         except Exception as e:
             st.error(f"OCR模块加载失败: {e}")
+
+# ==================== 死亡热力图 ====================
+elif menu == "🔥 死亡热力图":
+    st.title("🔥 死亡热力图分析")
+    st.caption("可视化你的死亡地点，找出高风险区域")
+    
+    # 读取热力图数据
+    data_dir = Path.home() / "Documents" / "DeltaTool"
+    death_heatmap_file = data_dir / "death_heatmap.json"
+    
+    if not death_heatmap_file.exists():
+        st.info("""
+        ### 📊 还没有死亡数据
+        
+        **如何开始收集数据？**
+        1. 前往"💻 实时监控"页面
+        2. 点击"启动监控"
+        3. 开始游戏，系统会自动记录死亡地点
+        4. 返回此页面查看热力图
+        
+        **功能说明：**
+        - 自动识别死亡画面并记录地点
+        - 统计每个地图的死亡热点
+        - 帮助你避开高风险区域
+        """)
+    else:
+        try:
+            with open(death_heatmap_file, 'r', encoding='utf-8') as f:
+                heatmap_data = json.load(f)
+            
+            if not heatmap_data:
+                st.warning("📌 数据文件存在但为空，请开始游戏记录数据")
+            else:
+                # 选择地图
+                available_maps = list(heatmap_data.keys())
+                selected_map = st.selectbox("🗺️ 选择地图", available_maps)
+                
+                if selected_map:
+                    map_deaths = heatmap_data[selected_map]
+                    total_deaths = sum(map_deaths.values())
+                    
+                    # 统计概览
+                    st.markdown("### 📊 统计概览")
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.metric("总死亡次数", total_deaths)
+                    with col2:
+                        st.metric("危险区域数", len(map_deaths))
+                    with col3:
+                        most_dangerous = max(map_deaths, key=map_deaths.get)
+                        st.metric("最危险地点", most_dangerous)
+                    
+                    st.markdown("---")
+                    
+                    # 热力图可视化
+                    st.markdown("### 🔥 死亡热力图")
+                    
+                    # 准备数据
+                    locations = list(map_deaths.keys())
+                    death_counts = list(map_deaths.values())
+                    percentages = [count/total_deaths*100 for count in death_counts]
+                    
+                    # 创建DataFrame
+                    df_heatmap = pd.DataFrame({
+                        "地点": locations,
+                        "死亡次数": death_counts,
+                        "占比": [f"{p:.1f}%" for p in percentages],
+                        "危险程度": percentages
+                    })
+                    
+                    # 按死亡次数排序
+                    df_heatmap = df_heatmap.sort_values("死亡次数", ascending=False)
+                    
+                    # 条形图
+                    import plotly.express as px
+                    fig = px.bar(
+                        df_heatmap,
+                        x="地点",
+                        y="死亡次数",
+                        color="危险程度",
+                        color_continuous_scale="Reds",
+                        title=f"{selected_map} - 死亡地点分布",
+                        labels={"危险程度": "死亡占比(%)"}
+                    )
+                    
+                    fig.update_layout(
+                        xaxis_title="地点",
+                        yaxis_title="死亡次数",
+                        showlegend=False,
+                        height=400
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # 详细数据表
+                    st.markdown("### 📋 详细数据")
+                    st.dataframe(
+                        df_heatmap[["地点", "死亡次数", "占比"]],
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    # 战术建议
+                    st.markdown("### 💡 战术建议")
+                    
+                    top_3_dangerous = df_heatmap.head(3)
+                    
+                    st.warning(f"""
+                    **⚠️ 高危区域警告**
+                    
+                    以下区域是你的死亡热点，建议避开或提高警惕：
+                    """)
+                    
+                    for idx, row in top_3_dangerous.iterrows():
+                        st.error(f"🚨 **{row['地点']}** - 死亡 {row['死亡次数']} 次 ({row['占比']})")
+                    
+                    st.info("""
+                    **🎯 改进建议：**
+                    1. 降落时避开高危区域
+                    2. 经过危险地带时提高警惕
+                    3. 准备更好的装备再进入
+                    4. 考虑改变路线或战术
+                    """)
+                    
+                    # 导出功能
+                    st.markdown("---")
+                    if st.button("📥 导出热力图数据"):
+                        csv = df_heatmap.to_csv(index=False, encoding='utf-8-sig')
+                        st.download_button(
+                            label="下载 CSV",
+                            data=csv,
+                            file_name=f"death_heatmap_{selected_map}_{datetime.now().strftime('%Y%m%d')}.csv",
+                            mime="text/csv"
+                        )
+                    
+                    # 清除数据选项
+                    with st.expander("🗑️ 数据管理"):
+                        st.warning("清除数据后无法恢复！")
+                        if st.button("清除所有热力图数据", type="secondary"):
+                            death_heatmap_file.unlink()
+                            st.success("已清除所有数据")
+                            st.rerun()
+        
+        except Exception as e:
+            st.error(f"读取热力图数据失败: {e}")
+            st.code(str(e))
 
 # ==================== 页脚 ====================
 st.markdown("---")

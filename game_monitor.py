@@ -43,10 +43,13 @@ class GameMonitor:
             "active": False,
             "map": None,
             "spawn_point": None,
+            "death_location": None,  # 死亡位置
             "items": [],
             "start_time": None,
             "last_detection_time": None,
-            "spawn_detected": False  # 是否已检测出生点
+            "spawn_detected": False,  # 是否已检测出生点
+            "currency": 0,  # 货币
+            "inventory_value": 0  # 装备库存价值
         }
         
         # OCR引擎
@@ -223,8 +226,15 @@ class GameMonitor:
                 weapon = w
                 break
         
-        print(f"💀 检测到淘汰画面！武器: {weapon}")
-        self._save_event("淘汰", f"被 {weapon} 击倒", img)
+        # 识别死亡地点（从地图中获取）
+        death_location = self._detect_death_location(text_content)
+        self.current_session["death_location"] = death_location
+        
+        print(f"💀 检测到淘汰画面！武器: {weapon} | 位置: {death_location}")
+        self._save_event("淘汰", f"被 {weapon} 击倒 @ {death_location}", img)
+        
+        # 保存死亡位置到热力图数据
+        self._save_death_location(death_location)
         
         # 结束当前会话
         self.current_session["active"] = False
@@ -234,8 +244,14 @@ class GameMonitor:
         survived = "撤离成功" in text_content
         status = "✅ 存活" if survived else "❌ 阵亡"
         
+        # OCR识别货币和装备价值
+        currency, inventory_value = self._extract_currency_and_value(text_content, img)
+        self.current_session["currency"] = currency
+        self.current_session["inventory_value"] = inventory_value
+        
         print(f"🏁 检测到对局结束! 状态: {status}")
-        self._save_event("对局结束", status, img)
+        print(f"💰 货币: {currency:,} | 装备价值: {inventory_value:,}")
+        self._save_event("对局结束", f"{status} | 货币:{currency} 装备:{inventory_value}", img)
         
         # 保存对局记录到主数据文件
         self._save_game_record(survived)
@@ -260,10 +276,94 @@ class GameMonitor:
         new_data.to_csv(self.data_file, mode='a', header=hdr, index=False)
         print(f"✅ [记录] {event_type}: {details}")
     
+    def _extract_currency_and_value(self, text_content, img):
+        """从结算画面提取货币和装备价值"""
+        import re
+        
+        currency = 0
+        inventory_value = 0
+        
+        try:
+            # 在图像上半部分寻找数字（结算信息通常在上方）
+            height = img.shape[0]
+            top_half = img[:height//2, :]
+            
+            # OCR识别上半部分
+            result = self.reader.readtext(top_half, detail=1) if self.reader else []
+            
+            for (bbox, text, prob) in result:
+                # 清理文本中的逗号和空格
+                clean_text = text.replace(',', '').replace(' ', '').replace('，', '')
+                
+                # 匹配大数字（货币通常>10000）
+                numbers = re.findall(r'\d+', clean_text)
+                for num_str in numbers:
+                    num = int(num_str)
+                    if num > 10000:  # 假设货币>1万
+                        if currency == 0:
+                            currency = num
+                        elif inventory_value == 0:
+                            inventory_value = num
+                            break
+        except Exception as e:
+            print(f"[货币识别错误] {e}")
+        
+        return currency, inventory_value
+    
+    def _detect_death_location(self, text_content):
+        """检测死亡地点"""
+        # 常见地点关键词
+        locations = [
+            "行政区", "游客中心", "水泥厂", "长弓溪谷", "零号大坝",
+            "军营", "栏杆", "后山", "主要电站", "渔村", "旅馆"
+        ]
+        
+        for loc in locations:
+            if loc in text_content:
+                return loc
+        
+        return "未知位置"
+    
+    def _save_death_location(self, location):
+        """保存死亡位置到热力图数据"""
+        if location == "未知位置":
+            return
+        
+        try:
+            death_heatmap_file = self.data_dir / "death_heatmap.json"
+            
+            # 读取现有数据
+            if death_heatmap_file.exists():
+                with open(death_heatmap_file, 'r', encoding='utf-8') as f:
+                    heatmap_data = json.load(f)
+            else:
+                heatmap_data = {}
+            
+            # 记录地图和位置
+            map_name = self.current_session.get("map", "未知")
+            if map_name not in heatmap_data:
+                heatmap_data[map_name] = {}
+            
+            if location not in heatmap_data[map_name]:
+                heatmap_data[map_name][location] = 0
+            
+            heatmap_data[map_name][location] += 1
+            
+            # 保存
+            with open(death_heatmap_file, 'w', encoding='utf-8') as f:
+                json.dump(heatmap_data, f, ensure_ascii=False, indent=2)
+            
+            print(f"📍 死亡位置已记录: {map_name} - {location}")
+        except Exception as e:
+            print(f"[热力图保存错误] {e}")
+    
     def _save_game_record(self, survived):
         """保存对局记录"""
         if not self.current_session.get("start_time"):
             return
+        
+        # 计算总收益（货币 + 装备价值）
+        total_profit = self.current_session.get("currency", 0) + self.current_session.get("inventory_value", 0)
         
         record = {
             "datetime": self.current_session["start_time"].isoformat(),
@@ -271,7 +371,7 @@ class GameMonitor:
             "mode": "机密",
             "zone": self.current_session.get("spawn_point", ""),
             "items": ";".join(self.current_session.get("items", [])),
-            "profit": 0,  # OCR难以准确识别收益数字
+            "profit": total_profit,
             "survived": survived
         }
         
@@ -282,7 +382,7 @@ class GameMonitor:
         hdr = not csv_file.exists()
         df.to_csv(csv_file, mode='a', header=hdr, index=False)
         
-        print(f"✅ 对局记录已保存: {record['map']} - {'存活' if survived else '阵亡'}")
+        print(f"✅ 对局记录已保存: {record['map']} - {'存活' if survived else '阵亡'} - 收益:{total_profit:,}")
 
 
 # 主函数 - 用于独立测试
