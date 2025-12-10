@@ -42,15 +42,16 @@ class GameMonitor:
             "spawn_detected_by_ocr": False  # OCR是否已识别出生点
         }
         
-        # 屏幕捕获（延迟初始化，避免环境问题）
-        self.sct = None
+        # 屏幕捕获可用性检查（每个线程需要独立的mss实例）
         self.screen_capture_available = False
         
         try:
-            self.sct = mss.mss()
+            # 测试屏幕捕获是否可用
+            with mss.mss() as test_sct:
+                _ = test_sct.monitors
             self.screen_capture_available = True
         except Exception as e:
-            print(f"⚠️ 屏幕捕获初始化失败: {e}")
+            print(f"⚠️ 屏幕捕获不可用: {e}")
             print("   游戏监控功能将不可用")
         
         # OCR引擎
@@ -126,47 +127,62 @@ class GameMonitor:
     
     def _monitor_loop(self):
         """监控主循环"""
-        while self.is_running:
-            try:
-                # 捕获屏幕
-                screenshot = self._capture_screen()
-                
-                if screenshot is not None:
-                    # 检测游戏状态
-                    self._detect_game_state(screenshot)
+        print("✅ 游戏监控已启动")
+        
+        # 在监控线程内创建mss实例（避免线程安全问题）
+        sct = None
+        try:
+            sct = mss.mss()
+        except Exception as e:
+            print(f"[错误] 无法创建屏幕捕获实例: {e}")
+            return
+        
+        try:
+            while self.is_running:
+                try:
+                    # 捕获屏幕
+                    screenshot = self._capture_screen(sct)
                     
-                    # 如果在游戏中，检测物品
-                    if self.current_session["active"]:
-                        elapsed_time = (datetime.now() - self.current_session["start_time"]).total_seconds()
+                    if screenshot is not None:
+                        # 检测游戏状态
+                        self._detect_game_state(screenshot)
                         
-                        # 前30秒用OCR检测出生点文字
-                        if (elapsed_time < self.spawn_detection_duration and 
-                            not self.current_session["spawn_detected_by_ocr"] and
-                            self.ocr_engine and self.ocr_engine.is_available()):
-                            self._detect_spawn_point_ocr(screenshot)
-                        
-                        # 持续检测高价值物品（颜色检测）
-                        self._detect_valuable_items(screenshot)
-                        
-                        # 定期检查结算画面
-                        if elapsed_time > 60 and elapsed_time % self.settlement_check_interval == 0:
-                            self._check_settlement_screen(screenshot)
-                
-                time.sleep(self.detection_interval)
-                
-            except Exception as e:
-                print(f"[监控错误] {e}")
-                time.sleep(5)
+                        # 如果在游戏中，检测物品
+                        if self.current_session["active"]:
+                            elapsed_time = (datetime.now() - self.current_session["start_time"]).total_seconds()
+                            
+                            # 前30秒用OCR检测出生点文字
+                            if (elapsed_time < self.spawn_detection_duration and 
+                                not self.current_session["spawn_detected_by_ocr"] and
+                                self.ocr_engine and self.ocr_engine.is_available()):
+                                self._detect_spawn_point_ocr(screenshot)
+                            
+                            # 持续检测高价值物品（颜色检测）
+                            self._detect_valuable_items(screenshot)
+                            
+                            # 定期检查结算画面
+                            if elapsed_time > 60 and elapsed_time % self.settlement_check_interval == 0:
+                                self._check_settlement_screen(screenshot)
+                    
+                    time.sleep(self.detection_interval)
+                    
+                except Exception as e:
+                    print(f"[监控错误] {e}")
+                    time.sleep(5)
+        finally:
+            # 确保关闭mss实例
+            if sct:
+                sct.close()
     
-    def _capture_screen(self):
+    def _capture_screen(self, sct):
         """捕获屏幕"""
-        if not self.screen_capture_available or self.sct is None:
+        if not self.screen_capture_available or sct is None:
             return None
         
         try:
             # 捕获主屏幕
-            monitor = self.sct.monitors[1]
-            screenshot = self.sct.grab(monitor)
+            monitor = sct.monitors[1]
+            screenshot = sct.grab(monitor)
             
             # 转换为numpy数组
             img = np.array(screenshot)
