@@ -22,6 +22,14 @@ try:
 except ImportError:
     OCR_AVAILABLE = False
 
+# 尝试导入语音引擎
+try:
+    import pyttsx3
+    TTS_AVAILABLE = True
+except ImportError:
+    TTS_AVAILABLE = False
+    print("⚠️ pyttsx3未安装，语音播报功能不可用。安装方法: pip install pyttsx3")
+
 
 class GameMonitor:
     """游戏监控器"""
@@ -71,6 +79,37 @@ class GameMonitor:
             print("✅ 屏幕捕获系统就绪")
         except Exception as e:
             print(f"⚠️ 屏幕捕获不可用: {e}")
+        
+        # 语音播报引擎
+        self.tts_engine = None
+        self.tts_enabled = False
+        if TTS_AVAILABLE:
+            try:
+                self.tts_engine = pyttsx3.init()
+                # 设置语音属性
+                self.tts_engine.setProperty('rate', 150)  # 语速
+                self.tts_engine.setProperty('volume', 0.9)  # 音量
+                self.tts_enabled = True
+                print("✅ 语音播报系统就绪")
+            except Exception as e:
+                print(f"⚠️ 语音引擎初始化失败: {e}")
+    
+    def speak(self, text):
+        """语音播报"""
+        if self.tts_enabled and self.tts_engine:
+            try:
+                # 在新线程中播报，避免阻塞主监控
+                threading.Thread(target=self._speak_async, args=(text,), daemon=True).start()
+            except Exception as e:
+                print(f"[语音播报错误] {e}")
+    
+    def _speak_async(self, text):
+        """异步语音播报"""
+        try:
+            self.tts_engine.say(text)
+            self.tts_engine.runAndWait()
+        except Exception as e:
+            print(f"[语音播报错误] {e}")
     
     def start_monitoring(self):
         """启动监控"""
@@ -205,6 +244,7 @@ class GameMonitor:
             "spawn_detected": False
         }
         print(f"🎮 检测到进入游戏: {map_name}")
+        self.speak(f"检测到进入{map_name}")
     
     def _detect_spawn_point(self, text_content):
         """检测出生点"""
@@ -214,6 +254,7 @@ class GameMonitor:
                 self.current_session["spawn_point"] = keyword
                 self.current_session["spawn_detected"] = True
                 print(f"📍 识别出生点: {keyword}")
+                self.speak(f"出生点识别：{keyword}")
                 break
     
     def _handle_death_screen(self, text_content, img):
@@ -231,6 +272,7 @@ class GameMonitor:
         self.current_session["death_location"] = death_location
         
         print(f"💀 检测到淘汰画面！武器: {weapon} | 位置: {death_location}")
+        self.speak(f"检测到淘汰画面，被{weapon}击倒")
         self._save_event("淘汰", f"被 {weapon} 击倒 @ {death_location}", img)
         
         # 保存死亡位置到热力图数据
@@ -251,6 +293,14 @@ class GameMonitor:
         
         print(f"🏁 检测到对局结束! 状态: {status}")
         print(f"💰 货币: {currency:,} | 装备价值: {inventory_value:,}")
+        
+        # 语音播报结果
+        total_value = currency + inventory_value
+        if survived:
+            self.speak(f"撤离成功，本局入账{total_value}哈夫币")
+        else:
+            self.speak(f"任务失败，损失{total_value}哈夫币")
+        
         self._save_event("对局结束", f"{status} | 货币:{currency} 装备:{inventory_value}", img)
         
         # 保存对局记录到主数据文件
